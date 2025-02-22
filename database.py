@@ -41,6 +41,18 @@ def update_global_score(user_id, points=1):
     conn.commit()
     conn.close()
 
+# In database.py
+def get_user_balance(user_id):
+    conn = get_connection()
+    c = conn.cursor()
+    c.execute("SELECT score FROM global_scores WHERE user_id=?", (user_id,))
+    row = c.fetchone()
+    conn.close()
+    if row:
+        return row["score"]
+    return 0
+
+
 def update_chat_score(chat_id, user_id, points=1):
     conn = get_connection()
     c = conn.cursor()
