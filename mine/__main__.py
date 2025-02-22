@@ -147,6 +147,61 @@ async def guess_normal_game(client: Client, message: Message):
 
 # ---------------- Challenge (Head-to-Head) Games ----------------
 
+# ---------------- Leaderboards & End Command ----------------
+
+@app.on_message(filters.command("leaderboard"))
+async def leaderboard(client: Client, message: Message):
+    leaderboard = get_global_leaderboard()
+    text = "🌍 **Global Leaderboard:**\n\n"
+    for rank, (uid, score) in enumerate(leaderboard, start=1):
+        try:
+            user = await client.get_users(uid)
+            name = user.first_name
+        except Exception:
+            name = f"User {uid}"
+        text += f"🏅 **#{rank}** - {name} → **{score} POINTS**\n"
+    await message.reply(text)
+
+@app.on_message(filters.command("chatleaderboard"))
+async def chat_leaderboard(client: Client, message: Message):
+    leaderboard = get_chat_leaderboard(message.chat.id)
+    text = "🏆 **Chat Leaderboard:**\n\n"
+    for rank, (uid, score) in enumerate(leaderboard, start=1):
+        try:
+            user = await client.get_users(uid)
+            name = user.first_name
+        except Exception:
+            name = f"User {uid}"
+        text += f"🏅 **#{rank}** - {name} → **{score} POINTS**\n"
+    await message.reply(text)
+
+@app.on_message(filters.command("end"))
+async def end_game(client: Client, message: Message):
+    chat_id = message.chat.id
+    if chat_id in normal_games:
+        del normal_games[chat_id]
+        await message.reply("🚫 The normal game has been ended. Start a new one with /new!")
+    else:
+        await message.reply("⚠️ No active normal game to end.")
+
+@app.on_message(filters.command("help"))
+async def help_command(client: Client, message: Message):
+    help_text = (
+        "**Word Mine Bot Help**\n\n"
+        "- /start - Start the bot and see the welcome message\n"
+        "- /new - Start a new normal game\n"
+        "- /challenge - Challenge a user for a head-to-head game\n"
+        "- /leaderboard - Global leaderboard\n"
+        "- /chatleaderboard - Chat leaderboard\n"
+        "- /end - End the current normal game\n"
+        "- /help - Show this help message\n"
+    )
+    await message.reply(help_text)
+
+
+
+# ---------------- Challenge (Head-to-Head) Games ----------------
+
 @app.on_message(filters.command("challenge"))
 async def challenge_user(client: Client, message: Message):
     if len(message.command) < 3:
@@ -250,55 +305,5 @@ async def guess_challenge_game(client: Client, message: Message):
                 del challenge_games[key]
             return
 
-# ---------------- Leaderboards & End Command ----------------
-
-@app.on_message(filters.command("leaderboard"))
-async def leaderboard(client: Client, message: Message):
-    leaderboard = get_global_leaderboard()
-    text = "🌍 **Global Leaderboard:**\n\n"
-    for rank, (uid, score) in enumerate(leaderboard, start=1):
-        try:
-            user = await client.get_users(uid)
-            name = user.first_name
-        except Exception:
-            name = f"User {uid}"
-        text += f"🏅 **#{rank}** - {name} → **{score} POINTS**\n"
-    await message.reply(text)
-
-@app.on_message(filters.command("chatleaderboard"))
-async def chat_leaderboard(client: Client, message: Message):
-    leaderboard = get_chat_leaderboard(message.chat.id)
-    text = "🏆 **Chat Leaderboard:**\n\n"
-    for rank, (uid, score) in enumerate(leaderboard, start=1):
-        try:
-            user = await client.get_users(uid)
-            name = user.first_name
-        except Exception:
-            name = f"User {uid}"
-        text += f"🏅 **#{rank}** - {name} → **{score} POINTS**\n"
-    await message.reply(text)
-
-@app.on_message(filters.command("end"))
-async def end_game(client: Client, message: Message):
-    chat_id = message.chat.id
-    if chat_id in normal_games:
-        del normal_games[chat_id]
-        await message.reply("🚫 The normal game has been ended. Start a new one with /new!")
-    else:
-        await message.reply("⚠️ No active normal game to end.")
-
-@app.on_message(filters.command("help"))
-async def help_command(client: Client, message: Message):
-    help_text = (
-        "**Word Mine Bot Help**\n\n"
-        "- /start - Start the bot and see the welcome message\n"
-        "- /new - Start a new normal game\n"
-        "- /challenge - Challenge a user for a head-to-head game\n"
-        "- /leaderboard - Global leaderboard\n"
-        "- /chatleaderboard - Chat leaderboard\n"
-        "- /end - End the current normal game\n"
-        "- /help - Show this help message\n"
-    )
-    await message.reply(help_text)
 
 app.run()
