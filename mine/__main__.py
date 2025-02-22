@@ -4,9 +4,10 @@ import requests
 from pyrogram import Client, filters
 from pyrogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton
 from database import (update_global_score, update_chat_score,
-                      get_global_leaderboard, get_chat_leaderboard, initialize_db)
+                      get_global_leaderboard, get_chat_leaderboard,
+                      initialize_db, get_user_balance)
 
-# Initialize the database (this will create the DB/tables if they don't exist)
+# Initialize the database (creates DB/tables if they don't exist)
 initialize_db()
 
 # Fallback words in case the API fails
@@ -34,7 +35,6 @@ word_lists = {length: fetch_words(length) for length in fallback_words}
 normal_games = {}       # Key: chat_id, value: game dict for normal (chat) games
 challenge_games = {}    # Key: frozenset({challenger, opponent}), value: game dict for challenge games
 challenges = {}         # Pending challenge requests; key: frozenset({challenger, opponent})
-user_points = {}        # Dictionary to track user points (you can integrate this with your DB as needed)
 
 # Bot credentials
 API_ID = int(os.getenv("API_ID", "20222660"))
@@ -147,6 +147,111 @@ async def guess_normal_game(client: Client, message: Message):
 
 # ---------------- Challenge (Head-to-Head) Games ----------------
 
+@app.on_message(filters.command("challenge"))
+async def challenge_user(client: Client, message: Message):
+    if len(message.command) < 3:
+        await message.reply("Usage: /challenge @username points")
+        return
+
+    challenger = message.from_user.id
+    opponent_username = message.command[1]
+    try:
+        opponent_user = await client.get_users(opponent_username)
+        opponent = opponent_user.id
+    except Exception:
+        await message.reply("Invalid username. Make sure the opponent exists.")
+        return
+
+    if challenger == opponent:
+        await message.reply("You can't challenge yourself!")
+        return
+
+    bet_points = int(message.command[2])
+    # Instead of using in-memory user_points, query the DB for current balance:
+    opponent_balance = get_user_balance(opponent)
+    if opponent_balance < bet_points:
+        await message.reply(
+            f"🚨 {opponent_username}, you don't have enough points! You have {opponent_balance} points.\n"
+            "Reply with a new bet amount."
+        )
+        challenges[frozenset({challenger, opponent})] = {"bet_pending": True, "challenger": challenger}
+        return
+
+    challenges[frozenset({challenger, opponent})] = {"bet": bet_points}
+    buttons = InlineKeyboardMarkup([[
+        InlineKeyboardButton("✅ Accept", callback_data=f"challenge_accept_{challenger}_{opponent}_{bet_points}")
+    ]])
+    await message.reply(
+        f"💥 {message.from_user.first_name} has challenged {opponent_username} for {bet_points} points!\n"
+        f"{opponent_username}, click 'Accept' to start the challenge.",
+        reply_markup=buttons
+    )
+
+@app.on_message(filters.text & filters.reply)
+async def handle_bet_response(client: Client, message: Message):
+    opponent = message.from_user.id
+    challenge_key = next((k for k, v in challenges.items() if opponent in k and v.get("bet_pending")), None)
+    if not challenge_key:
+        return
+    challenger = challenges[challenge_key]["challenger"]
+    try:
+        new_bet = int(message.text.strip())
+    except ValueError:
+        await message.reply("Please enter a valid number.")
+        return
+    # Verify opponent's balance from DB
+    opponent_balance = get_user_balance(opponent)
+    if new_bet <= 0 or new_bet > opponent_balance:
+        await message.reply("Invalid bet amount. Please try again.")
+        return
+    challenges[challenge_key] = {"bet": new_bet}
+    buttons = InlineKeyboardMarkup([[
+        InlineKeyboardButton("✅ Accept", callback_data=f"challenge_accept_{challenger}_{opponent}_{new_bet}")
+    ]])
+    await message.reply(f"Challenge updated! New bet: {new_bet} points.", reply_markup=buttons)
+
+@app.on_callback_query(filters.regex(r"^challenge_accept_(\d+)_(\d+)_(\d+)$"))
+async def accept_challenge(client, callback_query):
+    data = callback_query.data.split("_")
+    # Data format: challenge_accept_{challenger}_{opponent}_{bet_points}
+    challenger = int(data[2])
+    opponent = int(data[3])
+    bet_points = int(data[4])
+    key = frozenset({challenger, opponent})
+    if key not in challenges:
+        await callback_query.answer("Challenge not found.", show_alert=True)
+        return
+    word_length = random.choice([4, 5, 6, 7])
+    word = random.choice(word_lists[word_length])
+    challenge_games[key] = {"word": word, "history": [], "used_words": set(), "bet": bet_points}
+    await callback_query.message.edit_text(
+        f"🔥 Challenge accepted! A {word_length}-letter word has been chosen.\n"
+        f"First to guess wins {bet_points} points!"
+    )
+    del challenges[key]
+
+@app.on_message(filters.text & ~filters.command(["challenge"]))
+async def guess_challenge_game(client: Client, message: Message):
+    user_id = message.from_user.id
+    for key, game in list(challenge_games.items()):
+        if user_id in key:
+            guess = message.text.strip().lower()
+            word = game["word"]
+            if len(guess) != len(word):
+                return
+            if guess in game["used_words"]:
+                await message.reply("You already guessed that!")
+                return
+            game["used_words"].add(guess)
+            game["history"].append(f"{check_guess(guess, word)} → {guess.upper()}")
+            await message.reply("\n".join(game["history"]))
+            if guess == word:
+                update_chat_score(message.chat.id, user_id, game["bet"])
+                update_global_score(user_id, game["bet"])
+                await message.reply(f"🎉 {message.from_user.first_name} wins the challenge! The word was {word.upper()}.")
+                del challenge_games[key]
+            return
+
 # ---------------- Leaderboards & End Command ----------------
 
 @app.on_message(filters.command("leaderboard"))
@@ -197,113 +302,5 @@ async def help_command(client: Client, message: Message):
         "- /help - Show this help message\n"
     )
     await message.reply(help_text)
-
-
-
-# ---------------- Challenge (Head-to-Head) Games ----------------
-
-@app.on_message(filters.command("challenge"))
-async def challenge_user(client: Client, message: Message):
-    if len(message.command) < 3:
-        await message.reply("Usage: /challenge @username points")
-        return
-
-    challenger = message.from_user.id
-    opponent_username = message.command[1]
-    try:
-        opponent_user = await client.get_users(opponent_username)
-        opponent = opponent_user.id
-    except Exception:
-        await message.reply("Invalid username. Make sure the opponent exists.")
-        return
-
-    if challenger == opponent:
-        await message.reply("You can't challenge yourself!")
-        return
-
-    bet_points = int(message.command[2])
-    # Check if opponent has enough points (adjust as needed)
-    opponent_points = user_points.get(opponent, 0)
-    if opponent_points < bet_points:
-        await message.reply(
-            f"🚨 {opponent_username}, you don't have enough points! You have {opponent_points} points.\n"
-            "Reply with a new bet amount."
-        )
-        challenges[frozenset({challenger, opponent})] = {"bet_pending": True, "challenger": challenger}
-        return
-
-    challenges[frozenset({challenger, opponent})] = {"bet": bet_points}
-    buttons = InlineKeyboardMarkup([[
-        InlineKeyboardButton("✅ Accept", callback_data=f"challenge_accept_{challenger}_{opponent}_{bet_points}")
-    ]])
-    await message.reply(
-        f"💥 {message.from_user.first_name} has challenged {opponent_username} for {bet_points} points!\n"
-        f"{opponent_username}, click 'Accept' to start the challenge.",
-        reply_markup=buttons
-    )
-
-@app.on_message(filters.text & filters.reply)
-async def handle_bet_response(client: Client, message: Message):
-    opponent = message.from_user.id
-    challenge_key = next((k for k, v in challenges.items() if opponent in k and v.get("bet_pending")), None)
-    if not challenge_key:
-        return
-    challenger = challenges[challenge_key]["challenger"]
-    try:
-        new_bet = int(message.text.strip())
-    except ValueError:
-        await message.reply("Please enter a valid number.")
-        return
-    if new_bet <= 0 or new_bet > user_points.get(opponent, 0):
-        await message.reply("Invalid bet amount. Please try again.")
-        return
-    challenges[challenge_key] = {"bet": new_bet}
-    buttons = InlineKeyboardMarkup([[
-        InlineKeyboardButton("✅ Accept", callback_data=f"challenge_accept_{challenger}_{opponent}_{new_bet}")
-    ]])
-    await message.reply(f"Challenge updated! New bet: {new_bet} points.", reply_markup=buttons)
-
-@app.on_callback_query(filters.regex(r"^challenge_accept_(\d+)_(\d+)_(\d+)$"))
-async def accept_challenge(client, callback_query):
-    data = callback_query.data.split("_")
-    # Format: challenge_accept_{challenger}_{opponent}_{bet_points}
-    challenger = int(data[2])
-    opponent = int(data[3])
-    bet_points = int(data[4])
-    key = frozenset({challenger, opponent})
-    if key not in challenges:
-        await callback_query.answer("Challenge not found.", show_alert=True)
-        return
-    word_length = random.choice([4, 5, 6, 7])
-    word = random.choice(word_lists[word_length])
-    challenge_games[key] = {"word": word, "history": [], "used_words": set(), "bet": bet_points}
-    await callback_query.message.edit_text(
-        f"🔥 Challenge accepted! A {word_length}-letter word has been chosen.\n"
-        f"First to guess wins {bet_points} points!"
-    )
-    del challenges[key]
-
-@app.on_message(filters.text & ~filters.command(["challenge"]))
-async def guess_challenge_game(client: Client, message: Message):
-    user_id = message.from_user.id
-    for key, game in list(challenge_games.items()):
-        if user_id in key:
-            guess = message.text.strip().lower()
-            word = game["word"]
-            if len(guess) != len(word):
-                return
-            if guess in game["used_words"]:
-                await message.reply("You already guessed that!")
-                return
-            game["used_words"].add(guess)
-            game["history"].append(f"{check_guess(guess, word)} → {guess.upper()}")
-            await message.reply("\n".join(game["history"]))
-            if guess == word:
-                update_chat_score(message.chat.id, user_id, game["bet"])
-                update_global_score(user_id, game["bet"])
-                await message.reply(f"🎉 {message.from_user.first_name} wins the challenge! The word was {word.upper()}.")
-                del challenge_games[key]
-            return
-
 
 app.run()
