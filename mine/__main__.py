@@ -167,7 +167,7 @@ async def challenge_user(client: Client, message: Message):
         return
 
     bet_points = int(message.command[2])
-    # Instead of using in-memory user_points, query the DB for current balance:
+    # Query DB for opponent's balance
     opponent_balance = get_user_balance(opponent)
     if opponent_balance < bet_points:
         await message.reply(
@@ -199,7 +199,6 @@ async def handle_bet_response(client: Client, message: Message):
     except ValueError:
         await message.reply("Please enter a valid number.")
         return
-    # Verify opponent's balance from DB
     opponent_balance = get_user_balance(opponent)
     if new_bet <= 0 or new_bet > opponent_balance:
         await message.reply("Invalid bet amount. Please try again.")
@@ -212,6 +211,8 @@ async def handle_bet_response(client: Client, message: Message):
 
 @app.on_callback_query(filters.regex(r"^challenge_accept_(\d+)_(\d+)_(\d+)$"))
 async def accept_challenge(client, callback_query):
+    # Acknowledge the callback query
+    await callback_query.answer("Challenge accepted!")
     data = callback_query.data.split("_")
     # Data format: challenge_accept_{challenger}_{opponent}_{bet_points}
     challenger = int(data[2])
@@ -221,9 +222,11 @@ async def accept_challenge(client, callback_query):
     if key not in challenges:
         await callback_query.answer("Challenge not found.", show_alert=True)
         return
+    # Store the chat id along with the challenge game so that only messages from that chat are processed.
+    chat_id = callback_query.message.chat.id
     word_length = random.choice([4, 5, 6, 7])
     word = random.choice(word_lists[word_length])
-    challenge_games[key] = {"word": word, "history": [], "used_words": set(), "bet": bet_points}
+    challenge_games[key] = {"word": word, "history": [], "used_words": set(), "bet": bet_points, "chat_id": chat_id}
     await callback_query.message.edit_text(
         f"🔥 Challenge accepted! A {word_length}-letter word has been chosen.\n"
         f"First to guess wins {bet_points} points!"
@@ -233,8 +236,10 @@ async def accept_challenge(client, callback_query):
 @app.on_message(filters.text & ~filters.command(["challenge"]))
 async def guess_challenge_game(client: Client, message: Message):
     user_id = message.from_user.id
+    chat_id = message.chat.id
+    # Process guesses only for challenge games in the same chat and for the involved users.
     for key, game in list(challenge_games.items()):
-        if user_id in key:
+        if user_id in key and chat_id == game.get("chat_id"):
             guess = message.text.strip().lower()
             word = game["word"]
             if len(guess) != len(word):
@@ -246,7 +251,7 @@ async def guess_challenge_game(client: Client, message: Message):
             game["history"].append(f"{check_guess(guess, word)} → {guess.upper()}")
             await message.reply("\n".join(game["history"]))
             if guess == word:
-                update_chat_score(message.chat.id, user_id, game["bet"])
+                update_chat_score(chat_id, user_id, game["bet"])
                 update_global_score(user_id, game["bet"])
                 await message.reply(f"🎉 {message.from_user.first_name} wins the challenge! The word was {word.upper()}.")
                 del challenge_games[key]
@@ -256,9 +261,12 @@ async def guess_challenge_game(client: Client, message: Message):
 
 @app.on_message(filters.command("leaderboard"))
 async def leaderboard(client: Client, message: Message):
-    leaderboard = get_global_leaderboard()
+    leaderboard_list = get_global_leaderboard()
+    if not leaderboard_list:
+        await message.reply("No leaderboard entries yet.")
+        return
     text = "🌍 **Global Leaderboard:**\n\n"
-    for rank, (uid, score) in enumerate(leaderboard, start=1):
+    for rank, (uid, score) in enumerate(leaderboard_list, start=1):
         try:
             user = await client.get_users(uid)
             name = user.first_name
@@ -269,9 +277,12 @@ async def leaderboard(client: Client, message: Message):
 
 @app.on_message(filters.command("chatleaderboard"))
 async def chat_leaderboard(client: Client, message: Message):
-    leaderboard = get_chat_leaderboard(message.chat.id)
+    leaderboard_list = get_chat_leaderboard(message.chat.id)
+    if not leaderboard_list:
+        await message.reply("No leaderboard entries yet.")
+        return
     text = "🏆 **Chat Leaderboard:**\n\n"
-    for rank, (uid, score) in enumerate(leaderboard, start=1):
+    for rank, (uid, score) in enumerate(leaderboard_list, start=1):
         try:
             user = await client.get_users(uid)
             name = user.first_name
