@@ -67,7 +67,7 @@ def get_chat_leaderboard(chat_id, limit=10):
     conn.close()
     return [(row["user_id"], row["score"]) for row in rows]
 
-if name == "database":
+if __name__ == "database":
     initialize_db()
     print("Database initialized.")
 
