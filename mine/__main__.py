@@ -224,13 +224,12 @@ async def help_command(client: Client, message: Message):
     await message.reply(help_text)
 
 
-
 @app.on_message(filters.command("challenge"))
 async def challenge_user(client: Client, message: Message):
-    if len(message.command) < 2:
-        await message.reply("Usage: /challenge @username")
+    if len(message.command) < 3:
+        await message.reply("Usage: /challenge @username <bet_amount>")
         return
-    
+
     challenger = message.from_user.id
     opponent_username = message.command[1]
     try:
@@ -239,15 +238,45 @@ async def challenge_user(client: Client, message: Message):
     except Exception:
         await message.reply("Invalid username.")
         return
-    
+
     if challenger == opponent:
         await message.reply("You can't challenge yourself!")
         return
+
+    # Get the bet amount
+    try:
+        bet_amount = int(message.command[2])
+        if bet_amount <= 0:
+            raise ValueError
+    except ValueError:
+        await message.reply("Please enter a valid positive bet amount.")
+        return
+
+    # Check if both players have enough balance
+    challenger_balance = get_user_balance(challenger)
+    opponent_balance = get_user_balance(opponent)
     
+    if challenger_balance < bet_amount:
+        await message.reply("You don't have enough points to place this bet!")
+        return
+    
+    if opponent_balance < bet_amount:
+        await message.reply(f"{opponent_user.first_name} does not have enough points to accept this bet!")
+        return
+
+    # Store the challenge details
     challenge_key = frozenset({challenger, opponent})
-    challenges[challenge_key] = {"challenger": challenger, "opponent": opponent}
-    buttons = [[InlineKeyboardButton(f"{i} Letters", callback_data=f"set_length_{challenger}_{opponent}_{i}")] for i in range(4, 8)]
+    challenges[challenge_key] = {
+        "challenger": challenger,
+        "opponent": opponent,
+        "bet_amount": bet_amount
+    }
+
+    buttons = [[InlineKeyboardButton(f"{i} Letters", callback_data=f"set_length_{challenger}_{opponent}_{bet_amount}_{i}")] for i in range(4, 8)]
     await message.reply("Choose a word length for the challenge:", reply_markup=InlineKeyboardMarkup(buttons))
+
+
+
 
 @app.on_callback_query(filters.regex(r"^set_length_(\d+)_(\d+)_(\d+)$"))
 async def set_challenge_length(client, callback_query):
