@@ -309,7 +309,7 @@ async def set_challenge_length(client, callback_query):
         )
 
         
-@app.on_callback_query(filters.regex(r"^challenge_accept_(\d+)_(\d+)_(\d+)_(\d+)$"))
+app.on_callback_query(filters.regex(r"^challenge_accept_(\d+)_(\d+)_(\d+)_(\d+)$"))
 async def accept_challenge(client, callback_query):
     challenger, opponent, bet_amount, word_length = map(int, callback_query.data.split("_")[2:])
     challenge_key = frozenset({challenger, opponent})
@@ -325,10 +325,7 @@ async def accept_challenge(client, callback_query):
     chat_id = callback_query.message.chat.id
     word = start_new_game(word_length)
 
-    # Deduct bet amount from both players
-    update_chat_score(chat_id, challenger, -bet_amount)
-    update_chat_score(chat_id, opponent, -bet_amount)
-    
+    # Do NOT deduct points here. Deduct them only when the game is over.
 
     challenge_games[challenge_key] = {
         "word": word,
@@ -343,6 +340,7 @@ async def accept_challenge(client, callback_query):
     await callback_query.message.edit_text(
         f"🔥 Challenge accepted! A {word_length}-letter word has been chosen. Start guessing!"
     )
+
 
 
 @app.on_message(filters.text)
