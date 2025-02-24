@@ -292,7 +292,86 @@ async def set_challenge_length(client, callback_query):
         )
 
         
+@app.on_callback_query(filters.regex(r"^challenge_accept_(\d+)_(\d+)_(\d+)_(\d+)$"))
+async def accept_challenge(client, callback_query):
+    challenger, opponent, bet_amount, word_length = map(int, callback_query.data.split("_")[2:])
+    challenge_key = frozenset({challenger, opponent})
 
+    if callback_query.from_user.id != opponent:
+        await callback_query.answer("This challenge is not for you.", show_alert=True)
+        return
+
+    if challenge_key not in challenges:
+        await callback_query.answer("Challenge not found.", show_alert=True)
+        return
+
+    chat_id = callback_query.message.chat.id
+    word = start_new_game(word_length)
+
+    # Deduct bet amount from both players
+    update_chat_score(chat_id, challenger, -bet_amount)
+    update_global_score(challenger, -bet_amount)
+    update_chat_score(chat_id, opponent, -bet_amount)
+    update_global_score(opponent, -bet_amount)
+
+    challenge_games[challenge_key] = {
+        "word": word,
+        "history": [],
+        "used_words": set(),
+        "chat_id": chat_id,
+        "bet_amount": bet_amount,
+        "players": {challenger, opponent}
+    }
+    del challenges[challenge_key]
+
+    await callback_query.message.edit_text(
+        f"🔥 Challenge accepted! A {word_length}-letter word has been chosen. Start guessing!"
+    )
+
+
+@app.on_message(filters.text)
+async def process_guess(client: Client, message: Message):
+    chat_id = message.chat.id
+    user_id = message.from_user.id
+    guess = message.text.strip().lower()
+
+    for key, game in list(challenge_games.items()):
+        if chat_id == game["chat_id"]:
+            if user_id not in game["players"]:
+                players = list(game["players"])
+                challenger_user = await client.get_users(players[0])
+                opponent_user = await client.get_users(players[1])
+                await message.reply(
+                    f"This challenge is between {challenger_user.first_name} and {opponent_user.first_name}, please don't interfere."
+                )
+                return
+            
+            word = game["word"]
+            if len(guess) != len(word) or guess in game["used_words"]:
+                return
+            game["used_words"].add(guess)
+            feedback = check_guess(guess, word)
+            game["history"].append(f"{feedback} → {guess.upper()}")
+            await message.reply("\n".join(game["history"]))
+
+            if guess == word:
+                # Determine the winner and loser
+                winner = user_id
+                loser = next(uid for uid in key if uid != winner)
+                bet_amount = game["bet_amount"]
+
+                # Transfer bet amount from loser to winner
+                update_chat_score(chat_id, winner, 2 * bet_amount)
+                update_global_score(winner, 2 * bet_amount)
+                update_chat_score(chat_id, loser, -bet_amount)
+                update_global_score(loser, -bet_amount)
+
+                winner_user = await client.get_users(winner)
+                loser_user = await client.get_users(loser)
+                await message.reply(f"🎉 {winner_user.first_name} wins! The word was **{word.upper()}**. {bet_amount} points have been transferred from {loser_user.first_name} to {winner_user.first_name}.")
+
+                del challenge_games[key]
+            return
 
           
 
