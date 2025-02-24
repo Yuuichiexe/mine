@@ -309,7 +309,7 @@ async def set_challenge_length(client, callback_query):
         )
 
         
-app.on_callback_query(filters.regex(r"^challenge_accept_(\d+)_(\d+)_(\d+)_(\d+)$"))
+@app.on_callback_query(filters.regex(r"^challenge_accept_(\d+)_(\d+)_(\d+)_(\d+)$"))
 async def accept_challenge(client, callback_query):
     challenger, opponent, bet_amount, word_length = map(int, callback_query.data.split("_")[2:])
     challenge_key = frozenset({challenger, opponent})
