@@ -125,27 +125,47 @@ async def start_normal_game(client, callback_query):
     await callback_query.message.edit_text(f"A new {word_length}-letter game has started! Start guessing!")
 
 @app.on_message(filters.text & ~filters.command(["new", "leaderboard", "chatleaderboard", "end", "help", "challenge"]))
-async def guess_normal_game(client: Client, message: Message):
+async def process_guess(client: Client, message: Message):
     chat_id = message.chat.id
-    if chat_id not in normal_games:
-        return
-    game = normal_games[chat_id]
+    user_id = message.from_user.id
     guess = message.text.strip().lower()
-    word = game["word"]
-    if len(guess) != len(word):
+
+    # Check if this is a normal game
+    if chat_id in normal_games:
+        game = normal_games[chat_id]
+        word = game["word"]
+        if len(guess) != len(word) or guess in game["used_words"]:
+            return
+        game["used_words"].add(guess)
+        feedback = check_guess(guess, word)
+        game["history"].append(f"{feedback} → {guess.upper()}")
+        await message.reply("\n".join(game["history"]))
+        if guess == word:
+            update_chat_score(chat_id, user_id)
+            update_global_score(user_id)
+            await message.reply(f"🎉 Congratulations {message.from_user.first_name}! You guessed the word **{word.upper()}** correctly!")
+            del normal_games[chat_id]
         return
-    if guess in game["used_words"]:
-        await message.reply("You already guessed that word!")
-        return
-    game["used_words"].add(guess)
-    feedback = check_guess(guess, word)
-    game["history"].append(f"{feedback} → {guess.upper()}")
-    await message.reply("\n".join(game["history"]))
-    if guess == word:
-        update_chat_score(chat_id, message.from_user.id)
-        update_global_score(message.from_user.id)
-        del normal_games[chat_id]
-        await message.reply(f"🎉 Congratulations {message.from_user.first_name}! You guessed the word **{word.upper()}** correctly!")
+
+    # Check if the user is in a challenge game
+    for key, game in list(challenge_games.items()):
+        if user_id in key and chat_id == game["chat_id"]:
+            word = game["word"]
+            if len(guess) != len(word) or guess in game["used_words"]:
+                return
+            game["used_words"].add(guess)
+            feedback = check_guess(guess, word)
+            game["history"].append(f"{feedback} → {guess.upper()}")
+            await message.reply("\n".join(game["history"]))
+            if guess == word:
+                update_chat_score(chat_id, user_id, 5)
+                update_global_score(user_id, 5)
+                await message.reply(f"🎉 {message.from_user.first_name} wins! The word was **{word.upper()}**.")
+                del challenge_games[key]
+            return
+
+    # If no game is active, ignore guesses
+    return
 
 
 @app.on_message(filters.command("leaderboard"))
