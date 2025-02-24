@@ -56,7 +56,7 @@ def get_user_balance(user_id):
 
 def update_chat_score(chat_id, user_id, score_change=1):
     """Update the chat-specific score of a user."""
-    conn, cursor = get_db()
+    conn, cursor = get_connection()
     
     # Update chat score
     cursor.execute(
