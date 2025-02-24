@@ -323,9 +323,8 @@ async def accept_challenge(client, callback_query):
 
     # Deduct bet amount from both players
     update_chat_score(chat_id, challenger, -bet_amount)
-    update_global_score(challenger, -bet_amount)
     update_chat_score(chat_id, opponent, -bet_amount)
-    update_global_score(opponent, -bet_amount)
+    
 
     challenge_games[challenge_key] = {
         "word": word,
