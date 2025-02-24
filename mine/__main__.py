@@ -166,7 +166,7 @@ async def process_guess(client: Client, message: Message):
                 
                 update_chat_score(chat_id, winner, +bet_amount * 2)  # 
                 update_chat_score(chat_id, loser, -bet_amount)
-                update_global_score(winner,  loser)
+                
               
                 winner_user = await client.get_users(winner)
                 loser_user = await client.get_users(loser)
