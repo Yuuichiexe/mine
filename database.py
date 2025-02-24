@@ -53,15 +53,25 @@ def get_user_balance(user_id):
     return 0
 
 
-def update_chat_score(chat_id, user_id, points=1):
-    conn = get_connection()
-    c = conn.cursor()
-    c.execute("""
-        INSERT INTO chat_scores (chat_id, user_id, score) VALUES (?, ?, ?)
-        ON CONFLICT(chat_id, user_id) DO UPDATE SET score = score + ?
-    """, (chat_id, user_id, points, points))
+
+def update_chat_score(chat_id, user_id, score_change=1):
+    """Update the chat-specific score of a user."""
+    conn, cursor = get_db()
+    
+    # Update chat score
+    cursor.execute(
+        "INSERT INTO chat_scores (chat_id, user_id, score) VALUES (?, ?, ?) "
+        "ON CONFLICT(chat_id, user_id) DO UPDATE SET score = score + ?",
+        (chat_id, user_id, score_change, score_change)
+    )
+    
+    # Update global score as well
+    update_global_score(user_id, score_change)
+    
     conn.commit()
     conn.close()
+
+
 
 def get_global_leaderboard(limit=10):
     conn = get_connection()
