@@ -164,10 +164,10 @@ async def process_guess(client: Client, message: Message):
                 bet_amount = game["bet_amount"]
 
                 # Transfer bet amount from loser to winner
-                update_chat_score(chat_id, winner, bet_amount)
-                update_global_score(winner, bet_amount)
-                update_chat_score(chat_id, loser, -bet_amount)
-                update_global_score(loser, -bet_amount)
+                update_chat_score(chat_id, winner, +bet_amount)
+                update_global_score(winner, +bet_amount)
+                update_chat_score(chat_id, loser, bet_amount)
+                update_global_score(loser, bet_amount)
 
                 winner_user = await client.get_users(winner)
                 loser_user = await client.get_users(loser)
@@ -375,10 +375,10 @@ async def process_guess(client: Client, message: Message):
                 bet_amount = game["bet_amount"]
 
                 # Transfer bet amount from loser to winner
-                update_chat_score(chat_id, winner, bet_amount)
-                update_global_score(winner, bet_amount)
-                update_chat_score(chat_id, loser, -bet_amount)
-                update_global_score(loser, -bet_amount)
+                update_chat_score(chat_id, winner, +bet_amount)
+                update_global_score(winner, +bet_amount)
+                update_chat_score(chat_id, loser, bet_amount)
+                update_global_score(loser, bet_amount)
 
                 winner_user = await client.get_users(winner)
                 loser_user = await client.get_users(loser)
