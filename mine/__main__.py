@@ -158,10 +158,24 @@ async def process_guess(client: Client, message: Message):
             game["history"].append(f"{feedback} → {guess.upper()}")
             await message.reply("\n".join(game["history"]))
             if guess == word:
-                update_chat_score(chat_id, user_id, 5)
-                update_global_score(user_id, 5)
-                await message.reply(f"🎉 {message.from_user.first_name} wins! The word was **{word.upper()}**.")
+                # Determine the winner and loser
+                winner = user_id
+                loser = next(uid for uid in key if uid != winner)
+                bet_amount = game["bet_amount"]
+
+                # Transfer bet amount from loser to winner
+                update_chat_score(chat_id, winner, bet_amount)
+                update_global_score(winner, bet_amount)
+                update_chat_score(chat_id, loser, -bet_amount)
+                update_global_score(loser, -bet_amount)
+
+                winner_user = await client.get_users(winner)
+                loser_user = await client.get_users(loser)
+                await message.reply(f"🎉 {winner_user.first_name} wins! The word was **{word.upper()}**. {bet_amount} points have been transferred from {loser_user.first_name} to {winner_user.first_name}.")
+
                 del challenge_games[key]
+              
+          
             return
 
     # If no game is active, ignore guesses
@@ -361,8 +375,8 @@ async def process_guess(client: Client, message: Message):
                 bet_amount = game["bet_amount"]
 
                 # Transfer bet amount from loser to winner
-                update_chat_score(chat_id, winner, 2 * bet_amount)
-                update_global_score(winner, 2 * bet_amount)
+                update_chat_score(chat_id, winner, bet_amount)
+                update_global_score(winner, bet_amount)
                 update_chat_score(chat_id, loser, -bet_amount)
                 update_global_score(loser, -bet_amount)
 
