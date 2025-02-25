@@ -31,27 +31,17 @@ def initialize_db():
     conn.commit()
     conn.close()
 
-
+# Get user's current score
 def get_user_score(user_id):
-    cursor.execute("SELECT points FROM users WHERE user_id = ?", (user_id,))
-    row = cursor.fetchone()
-    return row[0] if row else 0
-    
+    conn = get_connection()
+    c = conn.cursor()
+    c.execute("SELECT score FROM global_scores WHERE user_id = ?", (user_id,))
+    row = c.fetchone()
+    conn.close()
+    return row["score"] if row else 0  # Default to 0 if user not found
+
 # Add points to a user
 def add_points(user_id, points):
-    cursor.execute("INSERT INTO users (user_id, points) VALUES (?, ?) ON CONFLICT(user_id) DO UPDATE SET points = points + ?",
-                   (user_id, points, points))
-    conn.commit()
-
-# Deduct points from a user
-def deduct_points(user_id, points):
-    current_score = get_user_score(user_id)
-    new_score = max(0, current_score - points)  # Prevent negative points
-    cursor.execute("UPDATE users SET points = ? WHERE user_id = ?", (new_score, user_id))
-    conn.commit()
-
-
-def update_global_score(user_id, points=1):
     conn = get_connection()
     c = conn.cursor()
     c.execute("""
@@ -61,18 +51,25 @@ def update_global_score(user_id, points=1):
     conn.commit()
     conn.close()
 
-# In database.py
-def get_user_balance(user_id):
+# Deduct points from a user (without going negative)
+def deduct_points(user_id, points):
     conn = get_connection()
     c = conn.cursor()
-    c.execute("SELECT score FROM global_scores WHERE user_id=?", (user_id,))
-    row = c.fetchone()
+    current_score = get_user_score(user_id)
+    new_score = max(0, current_score - points)  # Prevent negative points
+    c.execute("UPDATE global_scores SET score = ? WHERE user_id = ?", (new_score, user_id))
+    conn.commit()
     conn.close()
-    if row:
-        return row["score"]
-    return 0
 
+# Update global score
+def update_global_score(user_id, points=1):
+    add_points(user_id, points)  # This function now handles global score updates
 
+# Get user balance (alias of get_user_score)
+def get_user_balance(user_id):
+    return get_user_score(user_id)
+
+# Update chat-specific score
 def update_chat_score(chat_id, user_id, points=1):
     conn = get_connection()
     c = conn.cursor()
@@ -80,9 +77,10 @@ def update_chat_score(chat_id, user_id, points=1):
         INSERT INTO chat_scores (chat_id, user_id, score) VALUES (?, ?, ?)
         ON CONFLICT(chat_id, user_id) DO UPDATE SET score = score + ?
     """, (chat_id, user_id, points, points))
+    conn.commit()
+    conn.close()
 
-
-
+# Get global leaderboard
 def get_global_leaderboard(limit=10):
     conn = get_connection()
     c = conn.cursor()
@@ -91,6 +89,7 @@ def get_global_leaderboard(limit=10):
     conn.close()
     return [(row["user_id"], row["score"]) for row in rows]
 
+# Get chat-specific leaderboard
 def get_chat_leaderboard(chat_id, limit=10):
     conn = get_connection()
     c = conn.cursor()
@@ -99,9 +98,7 @@ def get_chat_leaderboard(chat_id, limit=10):
     conn.close()
     return [(row["user_id"], row["score"]) for row in rows]
 
+# Initialize database when script is run
 if __name__ == "database":
     initialize_db()
     print("Database initialized.")
-
-
-
