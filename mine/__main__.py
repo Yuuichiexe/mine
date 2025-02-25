@@ -82,22 +82,6 @@ def check_guess(guess, word_to_guess):
     return ''.join(feedback)
 
 
-@app.on_message(filters.command("challenge"))
-async def handle_challenge(client, message):
-    await challenge_player(client, message)
-
-@app.on_callback_query(filters.regex("^accept_"))
-async def handle_accept(client, callback_query):
-    await accept_challenge(client, callback_query)
-
-@app.on_callback_query(filters.regex("^decline_"))
-async def handle_decline(client, callback_query):
-    await decline_challenge(client, callback_query)
-
-@app.on_message(filters.text)
-async def handle_guess(client, message):
-    await process_challenge_guess(client, message)
-
 
 
 @app.on_message(filters.command("start"))
@@ -171,7 +155,7 @@ async def select_word_length(client, callback_query):
     
     await callback_query.message.edit_text(f"A new {word_length}-letter game has started! Guess a word.")
 
-@app.on_message(filters.text & ~filters.command(["new", "leaderboard", "chatleaderboard", "end", "help"]))
+@app.on_message(filters.text & ~filters.command(["new", "leaderboard", "chatleaderboard", "end", "help", "challenge"]))
 async def guess_word(client: Client, message: Message):
     chat_id = message.chat.id
     user_id = message.from_user.id
@@ -288,6 +272,25 @@ async def help_command(client: Client, message: Message):
         
     )
     await message.reply(help_text)
-    
+
+
+
+@app.on_message(filters.command("challenge"))
+async def handle_challenge(client, message):
+    await challenge_player(client, message)
+
+@app.on_callback_query(filters.regex("^accept_"))
+async def handle_accept(client, callback_query):
+    await accept_challenge(client, callback_query)
+
+@app.on_callback_query(filters.regex("^decline_"))
+async def handle_decline(client, callback_query):
+    await decline_challenge(client, callback_query)
+
+@app.on_message(filters.text)
+async def handle_guess(client, message):
+    await process_challenge_guess(client, message)
+
+
 app.run()
 
