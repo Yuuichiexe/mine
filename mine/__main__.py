@@ -4,6 +4,7 @@ import requests
 from pyrogram import Client, filters
 from pyrogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton, InputMediaPhoto
 from database import update_global_score, update_chat_score, get_global_leaderboard, get_chat_leaderboard
+from challenge import challenge_player, accept_challenge, decline_challenge, process_challenge_guess
 
 # Fallback words in case the API fails
 fallback_words = {
@@ -36,9 +37,9 @@ group_games = {}
 # Bot credentials
 API_ID = int(os.getenv("API_ID", "20222660"))
 API_HASH = os.getenv("API_HASH", "5788f1f4a93f2de28835a0cf1b0ebae4")
-BOT_TOKEN = os.getenv("BOT_TOKEN", "")
+BOT_TOKEN = os.getenv("BOT_TOKEN", "6694970760:AAFv6Zm9Av8HrY7JOTohg0E6c53Ar036eDc")
 
-app = Client("word_guess", bot_token=BOT_TOKEN, api_id=API_ID, api_hash=API_HASH)
+app = Client("word_guess_bot", bot_token=BOT_TOKEN, api_id=API_ID, api_hash=API_HASH)
 
 # Start a new game
 def start_new_game(word_length):
@@ -79,6 +80,25 @@ def check_guess(guess, word_to_guess):
             feedback[i] = "🟥"
     
     return ''.join(feedback)
+
+
+@app.on_message(filters.command("challenge"))
+async def handle_challenge(client, message):
+    await challenge_player(client, message)
+
+@app.on_callback_query(filters.regex("^accept_"))
+async def handle_accept(client, callback_query):
+    await accept_challenge(client, callback_query)
+
+@app.on_callback_query(filters.regex("^decline_"))
+async def handle_decline(client, callback_query):
+    await decline_challenge(client, callback_query)
+
+@app.on_message(filters.text)
+async def handle_guess(client, message):
+    await process_challenge_guess(client, message)
+
+app.run()
 
 
 @app.on_message(filters.command("start"))
