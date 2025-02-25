@@ -124,17 +124,19 @@ async def decline_challenge(client, callback_query):
     if challenge:
         await callback_query.message.edit_text("🚫 Challenge declined. No points were deducted.")
 
+
+
 async def process_challenge_guess(client, message):
     user_id = message.from_user.id
 
-    if user_id not in challenge_games:
+    if user_id not in group_games:
         return
 
-    game_data = challenge_games[user_id]
+    game_data = group_games[user_id]
     word_to_guess = game_data["word"]
     guess = message.text.strip().lower()
 
-    if len(guess) != len(word_to_guess):
+    if len(guess) != len(word_to_guess) or not is_valid_english_word(guess):
         return  
 
     feedback = check_guess(guess, word_to_guess)
@@ -145,15 +147,24 @@ async def process_challenge_guess(client, message):
     if guess == word_to_guess:
         winner = user_id
         loser = next(p for p in game_data["players"] if p != winner)
-        
-        bet_points = challenges[winner]["bet"]
 
-        add_points(winner, bet_points * 2)
+        # Retrieve challenge details safely
+        challenge = challenges.get(winner) or challenges.get(loser)
+        if not challenge:
+            print(f"Error: No challenge found for {winner} or {loser}")
+            return
 
-        await message.reply(f"🏆 {message.from_user.first_name} won the challenge and now has more points!\n"
+        bet_points = challenge["bet"]
+
+        add_points(winner, bet_points * 2)  
+
+        await message.reply(f"🏆 {message.from_user.first_name} won the challenge!\n"
                             f"🔹 **Winner's new score:** {get_user_score(winner)}\n"
                             f"🔸 **Loser's new score:** {get_user_score(loser)}")
 
-        del challenge_games[winner]
-        del challenge_games[loser]
-        del challenges[winner]
+        # Clean up game data
+        del group_games[winner]
+        del group_games[loser]
+        challenges.pop(winner, None)  # Ensure it's deleted safely
+        challenges.pop(loser, None)
+
