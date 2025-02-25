@@ -98,7 +98,6 @@ async def handle_decline(client, callback_query):
 async def handle_guess(client, message):
     await process_challenge_guess(client, message)
 
-app.run()
 
 
 @app.on_message(filters.command("start"))
