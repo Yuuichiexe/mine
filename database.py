@@ -31,6 +31,21 @@ def initialize_db():
     conn.commit()
     conn.close()
 
+
+# Add points to a user
+def add_points(user_id, points):
+    cursor.execute("INSERT INTO users (user_id, points) VALUES (?, ?) ON CONFLICT(user_id) DO UPDATE SET points = points + ?",
+                   (user_id, points, points))
+    conn.commit()
+
+# Deduct points from a user
+def deduct_points(user_id, points):
+    current_score = get_user_score(user_id)
+    new_score = max(0, current_score - points)  # Prevent negative points
+    cursor.execute("UPDATE users SET points = ? WHERE user_id = ?", (new_score, user_id))
+    conn.commit()
+
+
 def update_global_score(user_id, points=1):
     conn = get_connection()
     c = conn.cursor()
