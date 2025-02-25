@@ -277,7 +277,7 @@ async def challenge_user(client: Client, message: Message):
 
     # Store the challenge details
     challenge_key = frozenset({challenger, opponent})
-    challenges[challenge_key] = {
+    challenge[challenge_key] = {
         "challenger": challenger,
         "opponent": opponent,
         "bet_amount": bet_amount
@@ -294,7 +294,7 @@ async def set_challenge_length(client, callback_query):
     challenge_key = frozenset({challenger, opponent})
 
     if challenge_key in challenges:
-        challenges[challenge_key]["word_length"] = word_length
+        challenge[challenge_key]["word_length"] = word_length
 
         buttons = [[InlineKeyboardButton("✅ Accept", callback_data=f"challenge_accept_{challenger}_{opponent}_{bet_amount}_{word_length}")]]
         await callback_query.message.edit_text(
@@ -329,55 +329,12 @@ async def accept_challenge(client, callback_query):
         "bet_amount": bet_amount,
         "players": {challenger, opponent}
     }
-    del challenges[challenge_key]
+    del challenge[challenge_key]
 
     await callback_query.message.edit_text(
         f"🔥 Challenge accepted! A {word_length}-letter word has been chosen. Start guessing!"
     )
 
-
-
-@app.on_message(filters.text)
-async def process_guess(client: Client, message: Message):
-    chat_id = message.chat.id
-    user_id = message.from_user.id
-    guess = message.text.strip().lower()
-
-    for key, game in list(challenge_games.items()):
-        if chat_id == game["chat_id"]:
-            if user_id not in game["players"]:
-                players = list(game["players"])
-                challenger_user = await client.get_users(players[0])
-                opponent_user = await client.get_users(players[1])
-                await message.reply(
-                    f"This challenge is between {challenger_user.first_name} and {opponent_user.first_name}, please don't interfere."
-                )
-                return
-            
-            word = game["word"]
-            if len(guess) != len(word) or guess in game["used_words"]:
-                return
-            game["used_words"].add(guess)
-            feedback = check_guess(guess, word)
-            game["history"].append(f"{feedback} → {guess.upper()}")
-            await message.reply("\n".join(game["history"]))
-
-            if guess == word:
-                # Determine the winner and loser
-                winner = user_id
-                loser = next(uid for uid in key if uid != winner)
-                bet_amount = game["bet_amount"]
-
-              
-                
-                # Transfer bet amount from loser to winner
-              
-                winner_user = await client.get_users(winner)
-                loser_user = await client.get_users(loser)
-                await message.reply(f"🎉 {winner_user.first_name} wins! The word was **{word.upper()}**. {bet_amount} points have been transferred from {loser_user.first_name} to {winner_user.first_name}.")
-
-                del challenge_games[key]
-            return
 
           
 
