@@ -3,14 +3,15 @@ import os
 import requests
 from pyrogram import Client, filters
 from pyrogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton
-from database import (update_global_score, update_chat_score,
-                      get_global_leaderboard, get_chat_leaderboard,
-                      initialize_db, get_user_balance)
+from database import (
+    update_global_score, update_chat_score, get_global_leaderboard,
+    get_chat_leaderboard, initialize_db, get_user_balance
+)
 
-# Initialize the database (creates DB/tables if they don't exist)
+# Initialize database
 initialize_db()
 
-# Fallback words in case the API fails
+# Default word sets in case API fails
 fallback_words = {
     4: ["play", "word", "game", "chat"],
     5: ["guess", "brain", "smart", "think"],
@@ -18,8 +19,8 @@ fallback_words = {
     7: ["amazing", "thought", "journey", "fantasy"]
 }
 
-# Function to fetch words from Datamuse API
-def fetch_words(word_length, max_words=100000):
+# Fetch words from Datamuse API
+def fetch_words(word_length):
     try:
         response = requests.get(f"https://api.datamuse.com/words?sp={'?' * word_length}&max=1000")
         response.raise_for_status()
@@ -28,68 +29,57 @@ def fetch_words(word_length, max_words=100000):
     except requests.RequestException:
         return fallback_words[word_length]
 
-# Load word lists for each length
 word_lists = {length: fetch_words(length) for length in fallback_words}
 
-# Dictionaries to store games and challenges
-normal_games = {}
-challenge_games = {}
-challenges = {}
-challenge_word_length = {}
-# Pending challenge requests; key: frozenset({challenger, opponent})
+# Game tracking
+normal_games = {}         # {chat_id: {"word": "guess", "history": [], "used_words": set()}}
+challenge_games = {}      # {frozenset({user1, user2}): {game_data}}
+pending_challenges = {}   # {frozenset({user1, user2}): {"challenger": user1, "opponent": user2, "bet": X}}
 
 # Bot credentials
 API_ID = int(os.getenv("API_ID", "20222660"))
 API_HASH = os.getenv("API_HASH", "5788f1f4a93f2de28835a0cf1b0ebae4")
-BOT_TOKEN = os.getenv("BOT_TOKEN", "6694970760:AAFv6Zm9Av8HrY7JOTohg0E6c53Ar036eDc")
+BOT_TOKEN = os.getenv("BOT_TOKEN", "YOUR_BOT_TOKEN")
 
 app = Client("word_guess_bot", bot_token=BOT_TOKEN, api_id=API_ID, api_hash=API_HASH)
 
-# Helper functions
 def start_new_game(word_length):
-    """Return a random word of the given length."""
+    """Return a random word of given length."""
     return random.choice(word_lists[word_length])
 
-def is_valid_english_word(word):
-    """Check if a word is valid using the Datamuse API."""
-    try:
-        response = requests.get(f"https://api.datamuse.com/words?sp={word}&max=1")
-        response.raise_for_status()
-        return word in [w["word"] for w in response.json()]
-    except requests.RequestException:
-        return False
-
 def check_guess(guess, word):
-    """Return feedback string using green, yellow, and red squares."""
-    feedback = [None] * len(word)
+    """Return feedback for the guessed word."""
+    feedback = ["🟥"] * len(word)
     word_list = list(word)
-    # First pass: correct letters (green)
+    
+    # Green squares (correct letter in correct position)
     for i in range(len(word)):
         if guess[i] == word[i]:
             feedback[i] = "🟩"
-            word_list[i] = None
-    # Second pass: letter exists (yellow) or not (red)
+            word_list[i] = None  # Mark as used
+    
+    # Yellow squares (correct letter in wrong position)
     for i in range(len(word)):
-        if feedback[i] is None:
-            if guess[i] in word_list:
-                feedback[i] = "🟨"
-                word_list[word_list.index(guess[i])] = None
-            else:
-                feedback[i] = "🟥"
+        if feedback[i] == "🟩":
+            continue
+        if guess[i] in word_list:
+            feedback[i] = "🟨"
+            word_list[word_list.index(guess[i])] = None  # Mark as used
+    
     return ''.join(feedback)
 
-# ---------------- Normal (Chat) Games ----------------
+# ---------------- COMMANDS ----------------
 
 @app.on_message(filters.command("start"))
-async def start_command(client: Client, message: Message):
+async def start_command(client, message):
     user_name = message.from_user.first_name
     welcome_text = (
-        f"Hello {user_name}! Welcome to **Word Mine Bot**! 🎮\n\n"
-        "How to Play:\n"
-        "- Start a new game with /new\n"
-        "- Choose word length\n"
+        f"Hello {user_name}! Welcome to **Word Mine Bot** 🎮\n\n"
+        "🟢 **How to Play:**\n"
+        "- Use /new to start a game.\n"
+        "- Choose a word length.\n"
         "- Guess the word and win points!\n"
-        "- Check leaderboard with /leaderboard\n"
+        "- Use /leaderboard to see top players.\n"
     )
     buttons = InlineKeyboardMarkup([
         [InlineKeyboardButton("➕ Add to Group", url=f"https://t.me/{client.me.username}?startgroup=true")],
@@ -102,35 +92,35 @@ async def show_commands(client, callback_query):
     commands_text = (
         "**Commands:**\n"
         "- /start - Start the bot\n"
-        "- /new - Start a new normal game\n"
-        "- /challenge - Challenge a user\n"
-        "- /leaderboard - Global leaderboard\n"
-        "- /chatleaderboard - Chat leaderboard\n"
-        "- /end - End current normal game\n"
-        "- /help - Show help message\n"
+        "- /new - Start a normal game\n"
+        "- /challenge @user <bet> - Challenge a player\n"
+        "- /leaderboard - See global leaderboard\n"
+        "- /chatleaderboard - See chat leaderboard\n"
+        "- /end - End the current game\n"
+        "- /help - Show help menu\n"
     )
     await callback_query.message.edit_text(commands_text)
 
 @app.on_message(filters.command("new"))
-async def new_game(client: Client, message: Message):
+async def new_game(client, message):
     buttons = [[InlineKeyboardButton(f"{i} Letters", callback_data=f"normal_{i}")] for i in range(4, 8)]
-    await message.reply("Choose a word length for a new game:", reply_markup=InlineKeyboardMarkup(buttons))
+    await message.reply("Choose a word length:", reply_markup=InlineKeyboardMarkup(buttons))
 
 @app.on_callback_query(filters.regex("^normal_"))
 async def start_normal_game(client, callback_query):
     word_length = int(callback_query.data.split("_")[1])
-    word = start_new_game(word_length)
     chat_id = callback_query.message.chat.id
+    word = start_new_game(word_length)
     normal_games[chat_id] = {"word": word, "history": [], "used_words": set()}
-    await callback_query.message.edit_text(f"A new {word_length}-letter game has started! Start guessing!")
+    await callback_query.message.edit_text(f"🔠 A {word_length}-letter game has started! Start guessing!")
 
 @app.on_message(filters.text & ~filters.command(["new", "leaderboard", "chatleaderboard", "end", "help", "challenge"]))
-async def process_guess(client: Client, message: Message):
+async def process_guess(client, message):
     chat_id = message.chat.id
     user_id = message.from_user.id
     guess = message.text.strip().lower()
 
-    # Check if this is a normal game
+    # Handle normal games
     if chat_id in normal_games:
         game = normal_games[chat_id]
         word = game["word"]
@@ -140,14 +130,15 @@ async def process_guess(client: Client, message: Message):
         feedback = check_guess(guess, word)
         game["history"].append(f"{feedback} → {guess.upper()}")
         await message.reply("\n".join(game["history"]))
+        
         if guess == word:
-            update_chat_score(chat_id, user_id)
-            update_global_score(user_id)
-            await message.reply(f"🎉 Congratulations {message.from_user.first_name}! You guessed the word **{word.upper()}** correctly!")
+            update_chat_score(chat_id, user_id, +1)
+            update_global_score(user_id, +1)
+            await message.reply(f"🎉 {message.from_user.first_name} guessed the word **{word.upper()}** correctly!")
             del normal_games[chat_id]
         return
 
-    # Check if the user is in a challenge game
+    # Handle challenge games
     for key, game in list(challenge_games.items()):
         if user_id in key and chat_id == game["chat_id"]:
             word = game["word"]
@@ -157,37 +148,35 @@ async def process_guess(client: Client, message: Message):
             feedback = check_guess(guess, word)
             game["history"].append(f"{feedback} → {guess.upper()}")
             await message.reply("\n".join(game["history"]))
+            
             if guess == word:
-                # Determine the winner and loser
                 winner = user_id
                 loser = next(uid for uid in key if uid != winner)
                 bet_amount = game["bet_amount"]
-                # Update chat scores first
-                update_chat_score(chat_id, loser, -bet_amount)   # Deduct from the loser
-                update_chat_score(chat_id, winner, +bet_amount)  # Add to the winner
 
-                # Fetch updated scores from the chat leaderboard
-                latest_loser_score = get_user_balance(loser)  
+                # Update chat scores first
+                update_chat_score(chat_id, loser, -bet_amount)
+                update_chat_score(chat_id, winner, +bet_amount)
+
+                # Fetch updated scores
+                latest_loser_score = get_user_balance(loser)
                 latest_winner_score = get_user_balance(winner)
 
-                # Sync the updated chat scores with the global leaderboard
-                update_global_score(loser, latest_loser_score)  
-                update_global_score(winner, latest_winner_score)  
+                # Sync global leaderboard
+                update_global_score(loser, latest_loser_score)
+                update_global_score(winner, latest_winner_score)
 
-                
-
-              
                 winner_user = await client.get_users(winner)
                 loser_user = await client.get_users(loser)
-                await message.reply(f"🎉 {winner_user.first_name} wins! The word was **{word.upper()}**. {bet_amount} points have been transferred from {loser_user.first_name} to {winner_user.first_name}.")
+                await message.reply(f"🎉 {winner_user.first_name} wins! The word was **{word.upper()}**. {bet_amount} points transferred from {loser_user.first_name}.")
 
                 del challenge_games[key]
-              
-          
             return
 
-    # If no game is active, ignore guesses
-    return
+
+
+
+
 
 
 @app.on_message(filters.command("leaderboard"))
