@@ -136,7 +136,7 @@ async def process_challenge_guess(client, message):
     word_to_guess = game_data["word"]
     guess = message.text.strip().lower()
 
-    if len(guess) != len(word_to_guess) or not is_valid_english_word(guess):
+    if len(guess) != len(word_to_guess):
         return  
 
     feedback = check_guess(guess, word_to_guess)
