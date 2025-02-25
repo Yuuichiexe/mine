@@ -32,6 +32,11 @@ def initialize_db():
     conn.close()
 
 
+def get_user_score(user_id):
+    cursor.execute("SELECT points FROM users WHERE user_id = ?", (user_id,))
+    row = cursor.fetchone()
+    return row[0] if row else 0
+    
 # Add points to a user
 def add_points(user_id, points):
     cursor.execute("INSERT INTO users (user_id, points) VALUES (?, ?) ON CONFLICT(user_id) DO UPDATE SET points = points + ?",
