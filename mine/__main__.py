@@ -162,14 +162,19 @@ async def process_guess(client: Client, message: Message):
                 winner = user_id
                 loser = next(uid for uid in key if uid != winner)
                 bet_amount = game["bet_amount"]
+                # Update chat scores first
+                update_chat_score(chat_id, loser, -bet_amount)   # Deduct from the loser
+                update_chat_score(chat_id, winner, +bet_amount)  # Add to the winner
 
+                # Fetch updated scores from the chat leaderboard
+                latest_loser_score = get_user_balance(loser)  
+                latest_winner_score = get_user_balance(winner)
 
+                # Sync the updated chat scores with the global leaderboard
+                update_global_score(loser, latest_loser_score)  
+                update_global_score(winner, latest_winner_score)  
 
-                update_chat_score(chat_id, winner, +bet_amount)  # Winner gains the bet amount
-                update_chat_score(chat_id, loser, -bet_amount)  # Loser loses the bet amount
-
-                update_global_score(winner, +bet_amount)  # Winner gains the bet amount in global leaderboard
-                update_global_score(loser, -bet_amount)  # Loser loses the bet amount in global leaderboard
+                
 
               
                 winner_user = await client.get_users(winner)
