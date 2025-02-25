@@ -45,7 +45,7 @@ def check_guess(guess, word_to_guess):
 async def challenge_player(client, message):
     args = message.command[1:]
     if len(args) < 3:
-        await message.reply("Usage: `/challenge @username points word_length`", parse_mode="markdown")
+        await message.reply("Usage: `/challenge @username points word_length`")
         return
 
     opponent_mention = args[0]
