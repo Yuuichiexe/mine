@@ -129,10 +129,10 @@ async def decline_challenge(client, callback_query):
 async def process_challenge_guess(client, message):
     user_id = message.from_user.id
 
-    if user_id not in group_games:
+    if user_id not in challenge_games:
         return
 
-    game_data = group_games[user_id]
+    game_data = challenge_games[user_id]
     word_to_guess = game_data["word"]
     guess = message.text.strip().lower()
 
