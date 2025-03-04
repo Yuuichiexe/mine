@@ -145,7 +145,7 @@ async def decline_challenge(client, callback_query):
     challenger_id = int(callback_query.data.split("_")[1])
     challenger_data.pop(challenger_id, None)
 
-@app.on_message(filters.text)
+@app.on_message(filters.text & ~filters.command(["new", "leaderboard", "chatleaderboard", "end", "help", "challenge"]))
 async def process_challenge_guess(client, message):
     user_id = message.from_user.id
     text = message.text.strip().lower()
