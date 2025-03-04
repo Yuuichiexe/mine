@@ -3,7 +3,7 @@ import requests
 from pyrogram import Client, filters
 from pyrogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton
 from database import get_user_points, update_user_points
-
+from mine import app
 # Store ongoing challenges
 challenger_data = {}
 
