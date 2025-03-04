@@ -42,23 +42,24 @@ async def handle_challenge(client, message):
         await message.reply("⚠️ Usage: `/challenge @username bet_amount`", quote=True)
         return
 
-    if not message.entities:
-        await message.reply("⚠️ Please tag a valid user to challenge!", quote=True)
-        return
-
-    # Extract mentioned user
-    opponent_id = None
-    for entity in message.entities:
-        if entity.type in [MessageEntityType.MENTION, MessageEntityType.TEXT_MENTION]:
-            opponent_id = entity.user.id if entity.user else None
-            break
-
-    if not opponent_id:
-        await message.reply("⚠️ Please tag a valid user to challenge!", quote=True)
-        return
-
-    challenger_id = message.from_user.id
     bet_amount = int(args[2])
+    challenger_id = message.from_user.id
+
+    if message.reply_to_message:  # If the user replied to someone
+        opponent_id = message.reply_to_message.from_user.id
+    else:
+        mentioned_usernames = [entity for entity in message.entities if entity.type == "mention"]
+        if not mentioned_usernames:
+            await message.reply("⚠️ Please reply to a user or tag a valid username!", quote=True)
+            return
+
+        mentioned_username = message.text.split()[1]  # Extract @username
+        try:
+            opponent = await client.get_users(mentioned_username)
+            opponent_id = opponent.id
+        except Exception:
+            await message.reply("⚠️ Invalid username! Make sure the user exists and is not private.", quote=True)
+            return
 
     if opponent_id == challenger_id:
         await message.reply("⚠️ You cannot challenge yourself!", quote=True)
@@ -96,6 +97,7 @@ async def handle_challenge(client, message):
         parse_mode="Markdown",
         quote=True
     )
+
 
 
 @app.on_callback_query(filters.regex("^challenge_length_"))
