@@ -1,6 +1,7 @@
 import random
 import requests
 from pyrogram import Client, filters
+from pyrogram.enums import MessageEntityType
 from pyrogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton
 from database import get_user_points, update_user_points
 from mine import app
@@ -32,19 +33,30 @@ word_lists = {length: fetch_words(length) for length in fallback_words}
 def get_random_word(word_length):
     return random.choice(word_lists[word_length])
 
+
 @app.on_message(filters.command("challenge"))
 async def handle_challenge(client, message):
     args = message.text.split()
-    
+
     if len(args) != 3 or not args[2].isdigit():
         await message.reply("⚠️ Usage: `/challenge @username bet_amount`", quote=True)
         return
 
-    if not message.entities or len(message.entities) < 2:
+    if not message.entities:
         await message.reply("⚠️ Please tag a valid user to challenge!", quote=True)
         return
 
-    opponent_id = message.entities[1].user.id  # Extract the tagged user
+    # Extract mentioned user
+    opponent_id = None
+    for entity in message.entities:
+        if entity.type in [MessageEntityType.MENTION, MessageEntityType.TEXT_MENTION]:
+            opponent_id = entity.user.id if entity.user else None
+            break
+
+    if not opponent_id:
+        await message.reply("⚠️ Please tag a valid user to challenge!", quote=True)
+        return
+
     challenger_id = message.from_user.id
     bet_amount = int(args[2])
 
@@ -84,6 +96,7 @@ async def handle_challenge(client, message):
         parse_mode="Markdown",
         quote=True
     )
+
 
 @app.on_callback_query(filters.regex("^challenge_length_"))
 async def select_challenge_length(client, callback_query):
