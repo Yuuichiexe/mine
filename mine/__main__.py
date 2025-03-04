@@ -4,7 +4,6 @@ import requests
 from pyrogram import Client, filters
 from pyrogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton, InputMediaPhoto
 from database import update_global_score, update_chat_score, get_global_leaderboard, get_chat_leaderboard
-from challenge import challenge_player, accept_challenge, decline_challenge, process_challenge_guess
 from mine import app
 
 # Fallback words in case the API fails
