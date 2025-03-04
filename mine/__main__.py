@@ -5,7 +5,7 @@ from pyrogram import Client, filters
 from pyrogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton, InputMediaPhoto
 from database import update_global_score, update_chat_score, get_global_leaderboard, get_chat_leaderboard
 from mine import app
-from mine.challenge import *
+
 
 # Fallback words in case the API fails
 fallback_words = {
@@ -271,5 +271,5 @@ async def help_command(client: Client, message: Message):
 
 
 
-app.run()
+
 
