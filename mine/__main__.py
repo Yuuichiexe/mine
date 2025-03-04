@@ -36,7 +36,7 @@ word_lists = {length: fetch_words(length) for length in fallback_words}
 group_games = {}
 
 # Bot credentials
-Start a new game
+
 def start_new_game(word_length):
     return random.choice(word_lists[word_length])
 
