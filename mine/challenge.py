@@ -4,6 +4,7 @@ from pyrogram import Client, filters
 from pyrogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton
 from database import get_user_points, update_user_points
 from mine import app
+
 # Store ongoing challenges
 challenger_data = {}
 
@@ -39,32 +40,32 @@ async def handle_challenge(client, message):
         await message.reply("⚠️ Usage: `/challenge @username bet_amount`", quote=True)
         return
 
-    if not message.reply_to_message:
-        await message.reply("⚠️ Reply to the user you want to challenge!", quote=True)
+    if not message.entities or len(message.entities) < 2:
+        await message.reply("⚠️ Please tag a valid user to challenge!", quote=True)
         return
 
+    opponent_id = message.entities[1].user.id  # Extract the tagged user
     challenger_id = message.from_user.id
-    opponent = message.reply_to_message.from_user
     bet_amount = int(args[2])
 
-    if bet_amount <= 0:
-        await message.reply("⚠️ Bet amount must be greater than 0.", quote=True)
+    if opponent_id == challenger_id:
+        await message.reply("⚠️ You cannot challenge yourself!", quote=True)
         return
 
     challenger_points = get_user_points(challenger_id)
-    opponent_points = get_user_points(opponent.id)
+    opponent_points = get_user_points(opponent_id)
 
     if challenger_points < bet_amount:
         await message.reply("❌ You don't have enough points!", quote=True)
         return
 
     if opponent_points < bet_amount:
-        await message.reply(f"❌ {opponent.mention} doesn't have enough points!", quote=True)
+        await message.reply(f"❌ The opponent doesn't have enough points!", quote=True)
         return
 
     # Store challenge details
     challenger_data[challenger_id] = {
-        "opponent_id": opponent.id,
+        "opponent_id": opponent_id,
         "bet_amount": bet_amount
     }
 
@@ -76,10 +77,11 @@ async def handle_challenge(client, message):
     ]
 
     await message.reply(
-        f"🎯 {opponent.mention}, {message.from_user.mention} has challenged you!\n"
-        f"💰 Bet Amount: **{bet_amount} points**\n\n"
-        "🔢 Challenger, select a word length:",
+        f"🎯 **{message.from_user.mention} has challenged [{opponent_id}](tg://user?id={opponent_id})!**\n"
+        f"💰 **Bet Amount:** `{bet_amount}` points\n\n"
+        "🔢 *Challenger, select a word length:*",
         reply_markup=InlineKeyboardMarkup(buttons),
+        parse_mode="Markdown",
         quote=True
     )
 
@@ -88,9 +90,8 @@ async def select_challenge_length(client, callback_query):
     data = callback_query.data.split("_")
     word_length = int(data[2])
     challenger_id = int(data[3])
-    user_id = callback_query.from_user.id
 
-    if challenger_id != user_id:
+    if challenger_id != callback_query.from_user.id:
         await callback_query.answer("⚠️ Only the challenger can select the word length!", show_alert=True)
         return
 
@@ -107,9 +108,10 @@ async def select_challenge_length(client, callback_query):
     ]
 
     await callback_query.message.edit_text(
-        f"✅ {callback_query.from_user.mention} selected a **{word_length}-letter** word!\n"
-        f"👤 {opponent_id}, do you accept?",
-        reply_markup=InlineKeyboardMarkup(buttons)
+        f"✅ **{callback_query.from_user.mention} selected a {word_length}-letter word!**\n"
+        f"👤 **[{opponent_id}](tg://user?id={opponent_id})**, do you accept?",
+        reply_markup=InlineKeyboardMarkup(buttons),
+        parse_mode="Markdown"
     )
 
 @app.on_callback_query(filters.regex("^accept_"))
@@ -133,24 +135,30 @@ async def accept_challenge(client, callback_query):
     challenger_data[challenger_id]["word"] = word
 
     await callback_query.message.edit_text(
-        f"🔥 The challenge has started!\n"
-        f"🔤 Word length: **{word_length}**\n"
-        f"💰 Bet Pool: **{bet_amount * 2} points**\n"
-        f"🤔 Both players, start guessing!"
+        f"🔥 **The challenge has started!**\n"
+        f"🔤 **Word length:** `{word_length}`\n"
+        f"💰 **Bet Pool:** `{bet_amount * 2} points`\n"
+        f"🤔 *Both players, start guessing!*"
     )
 
 @app.on_callback_query(filters.regex("^decline_"))
 async def decline_challenge(client, callback_query):
-    await callback_query.message.edit_text("🚫 Challenge declined.")
+    opponent_id = callback_query.from_user.id
     challenger_id = int(callback_query.data.split("_")[1])
-    challenger_data.pop(challenger_id, None)
+
+    if challenger_id not in challenger_data or challenger_data[challenger_id]["opponent_id"] != opponent_id:
+        await callback_query.answer("⚠️ You cannot decline this challenge!", show_alert=True)
+        return
+
+    del challenger_data[challenger_id]
+    await callback_query.message.edit_text("🚫 **Challenge declined.**", parse_mode="Markdown")
 
 @app.on_message(filters.text & ~filters.command(["new", "leaderboard", "chatleaderboard", "end", "help"]))
 async def process_challenge_guess(client, message):
     user_id = message.from_user.id
     text = message.text.strip().lower()
 
-    for challenger_id, game_data in challenger_data.items():
+    for challenger_id, game_data in list(challenger_data.items()):
         if user_id in [challenger_id, game_data.get("opponent_id")]:
             word = game_data["word"]
             bet_amount = game_data["bet_amount"]
@@ -164,7 +172,7 @@ async def process_challenge_guess(client, message):
                 for i in range(len(text))
             )
 
-            await message.reply(f"{feedback} → {text.upper()}")
+            await message.reply(f"{feedback} → `{text.upper()}`", parse_mode="Markdown")
 
             if text == word:
                 winner_id = user_id
@@ -172,11 +180,16 @@ async def process_challenge_guess(client, message):
                 winnings = bet_amount * 2
 
                 update_user_points(winner_id, winnings)  # Winner gets total bet amount
+                total_points = get_user_points(winner_id)  # Get updated total points
 
                 del challenger_data[challenger_id]
 
                 await message.reply(
-                    f"🎉 {message.from_user.mention} won!\n"
-                    f"💰 Earned **{winnings} points**!"
+                    f"🎉 **Congratulations, {message.from_user.mention}!** 🎉\n"
+                    f"🏆 You guessed the word **`{word.upper()}`** correctly!\n"
+                    f"💰 You won **`{winnings} points`**!\n"
+                    f"🔥 Your new total: **`{total_points} points`**!\n"
+                    f"🎯 *Keep challenging and dominate the leaderboard!* 🚀",
+                    parse_mode="Markdown"
                 )
             return
