@@ -1,170 +1,190 @@
 import random
 import requests
+from pyrogram import Client, filters
 from pyrogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton
-from database import get_user_score, deduct_points, add_points
+from database import get_user_points, update_user_points  # Import functions for point management
 
-# Challenge tracking
-challenges = {}
-challenge_games = {}
+# Store ongoing challenges
+challenger_data = {}
 
-# Fetch words from API
+# Fallback words in case API fails
+fallback_words = {
+    4: ["play", "word", "game", "chat"],
+    5: ["guess", "brain", "smart", "think"],
+    6: ["random", "puzzle", "letter", "breeze"],
+    7: ["amazing", "thought", "journey", "fantasy"]
+}
+
+# Fetch words from Datamuse API
 def fetch_words(word_length):
     try:
         response = requests.get(f"https://api.datamuse.com/words?sp={'?' * word_length}&max=1000", timeout=5)
         response.raise_for_status()
         words = [word["word"] for word in response.json()]
-        return words if words else ["guess", "smart", "brain"]
+        return words if words else fallback_words[word_length]
     except requests.RequestException:
-        return ["guess", "smart", "brain"]
+        return fallback_words[word_length]
 
-word_lists = {length: fetch_words(length) for length in range(4, 8)}
+# Preload word lists
+word_lists = {length: fetch_words(length) for length in fallback_words}
 
-def start_new_game(word_length):
+def get_random_word(word_length):
     return random.choice(word_lists[word_length])
 
-def check_guess(guess, word_to_guess):
-    feedback = []
-    word_to_guess_list = list(word_to_guess)
-    
-    for i in range(len(word_to_guess)):
-        if guess[i] == word_to_guess[i]:
-            feedback.append("🟩")
-            word_to_guess_list[i] = None  
-        else:
-            feedback.append(None)
-    
-    for i in range(len(word_to_guess)):
-        if feedback[i] is None and guess[i] in word_to_guess_list:
-            feedback[i] = "🟨"
-            word_to_guess_list[word_to_guess_list.index(guess[i])] = None  
-        elif feedback[i] is None:
-            feedback[i] = "🟥"
-    
-    return ''.join(feedback)
-
-async def challenge_player(client, message):
-    args = message.command[1:]
-    if len(args) < 3:
-        await message.reply("Usage: `/challenge @username points word_length`")
+@app.on_message(filters.command("challenge"))
+async def handle_challenge(client, message):
+    args = message.text.split()
+    if len(args) != 3 or not args[2].isdigit():
+        await message.reply("⚠️ Usage: `/challenge @username bet_amount`", quote=True)
         return
 
-    opponent_mention = args[0]
-    bet_points = int(args[1])
-    word_length = int(args[2])
-    
-    if not (4 <= word_length <= 7):
-        await message.reply("Word length must be between 4 and 7 letters!")
-        return
-    
-    if message.reply_to_message:
-        opponent_id = message.reply_to_message.from_user.id
-    else:
-        opponent_id = await client.get_users(opponent_mention.strip("@"))
-        opponent_id = opponent_id.id if opponent_id else None
-
-    if not opponent_id:
-        await message.reply("Invalid opponent! Mention a valid user or reply to their message.")
+    if not message.reply_to_message:
+        await message.reply("⚠️ Please reply to the user you want to challenge!", quote=True)
         return
 
     challenger_id = message.from_user.id
-    challenger_score = get_user_score(challenger_id)
-    opponent_score = get_user_score(opponent_id)
+    opponent = message.reply_to_message.from_user
+    bet_amount = int(args[2])
 
-    if challenger_score < bet_points or opponent_score < bet_points:
-        await message.reply("One or both players don't have enough points for this challenge.")
+    if bet_amount <= 0:
+        await message.reply("⚠️ Bet amount must be greater than 0.", quote=True)
         return
 
-    challenges[opponent_id] = {
-        "challenger": challenger_id,
-        "bet": bet_points,
-        "word_length": word_length
+    challenger_points = get_user_points(challenger_id)
+    opponent_points = get_user_points(opponent.id)
+
+    if challenger_points < bet_amount:
+        await message.reply("❌ You don't have enough points! Earn points by playing new games.", quote=True)
+        return
+
+    if opponent_points < bet_amount:
+        await message.reply(f"❌ {opponent.mention} doesn't have enough points!", quote=True)
+        return
+
+    challenger_data[challenger_id] = {
+        "opponent_id": opponent.id,
+        "bet_amount": bet_amount
     }
 
-    challenge_text = (f"🔥 {message.from_user.first_name} challenged you to a Word Mine duel! 🔥\n"
-                      f"💰 **Bet:** {bet_points} points\n"
-                      f"🔡 **Word Length:** {word_length} letters\n\n"
-                      f"Do you accept the challenge?")
+    buttons = [
+        [InlineKeyboardButton("4 Letters", callback_data=f"challenge_length_4_{challenger_id}")],
+        [InlineKeyboardButton("5 Letters", callback_data=f"challenge_length_5_{challenger_id}")],
+        [InlineKeyboardButton("6 Letters", callback_data=f"challenge_length_6_{challenger_id}")],
+        [InlineKeyboardButton("7 Letters", callback_data=f"challenge_length_7_{challenger_id}")],
+    ]
 
-    buttons = InlineKeyboardMarkup([
-        [InlineKeyboardButton("✅ Accept", callback_data=f"accept_{opponent_id}")],
-        [InlineKeyboardButton("❌ Decline", callback_data=f"decline_{opponent_id}")]
-    ])
+    await message.reply(
+        f"🎯 {opponent.mention}, {message.from_user.mention} has challenged you to a game!\n"
+        f"💰 Bet Amount: **{bet_amount} points**\n\n"
+        "🔢 Challenger, select a word length:",
+        reply_markup=InlineKeyboardMarkup(buttons),
+        quote=True
+    )
 
-    await message.reply(challenge_text, reply_markup=buttons)
+@app.on_callback_query(filters.regex("^challenge_length_"))
+async def select_challenge_length(client, callback_query):
+    data = callback_query.data.split("_")
+    word_length = int(data[2])
+    challenger_id = int(data[3])
+    user_id = callback_query.from_user.id
 
+    if challenger_id != user_id:
+        await callback_query.answer("⚠️ Only the challenger can select the word length!", show_alert=True)
+        return
+
+    if challenger_id not in challenger_data:
+        await callback_query.answer("⚠️ Challenge not found!", show_alert=True)
+        return
+
+    challenger_data[challenger_id]["word_length"] = word_length
+
+    opponent_id = challenger_data[challenger_id]["opponent_id"]
+
+    buttons = [
+        [InlineKeyboardButton("✅ Accept", callback_data=f"accept_{challenger_id}")],
+        [InlineKeyboardButton("❌ Decline", callback_data=f"decline_{challenger_id}")],
+    ]
+
+    await callback_query.message.edit_text(
+        f"✅ {callback_query.from_user.mention} has chosen a **{word_length}-letter** word!\n"
+        f"👤 {callback_query.message.chat.get_member(opponent_id).user.mention}, do you accept the challenge?",
+        reply_markup=InlineKeyboardMarkup(buttons)
+    )
+
+@app.on_callback_query(filters.regex("^accept_"))
 async def accept_challenge(client, callback_query):
-    opponent_id = int(callback_query.data.split("_")[1])
-    challenge = challenges.pop(opponent_id, None)
+    opponent_id = callback_query.from_user.id
+    challenger_id = int(callback_query.data.split("_")[1])
 
-    if not challenge or callback_query.from_user.id != opponent_id:
-        await callback_query.answer("This challenge is no longer valid.", show_alert=True)
+    if challenger_id not in challenger_data or challenger_data[challenger_id]["opponent_id"] != opponent_id:
+        await callback_query.answer("⚠️ This challenge is not for you!", show_alert=True)
         return
 
-    challenger_id = challenge["challenger"]
-    bet_points = challenge["bet"]
-    word_length = challenge["word_length"]
+    game_data = challenger_data[challenger_id]
+    word_length = game_data["word_length"]
+    word = get_random_word(word_length)
+    bet_amount = game_data["bet_amount"]
 
-    deduct_points(challenger_id, bet_points)
-    deduct_points(opponent_id, bet_points)
+    # Deduct bet amount from both players
+    update_user_points(challenger_id, -bet_amount)
+    update_user_points(opponent_id, -bet_amount)
 
-    word_to_guess = start_new_game(word_length)
-    challenge_games[opponent_id] = challenge_games[challenger_id] = {
-        "word": word_to_guess, 
-        "players": {challenger_id, opponent_id}, 
-        "history": []
-    }
+    challenger_data[challenger_id]["word"] = word
 
-    await callback_query.message.edit_text(f"🆕 Challenge accepted! {word_length}-letter game begins!\n"
-                                           "Both players, start guessing the word!")
+    await callback_query.message.edit_text(
+        f"🔥 The challenge has started!\n"
+        f"🔤 The word has **{word_length}** letters.\n"
+        f"💰 Total Bet Pool: **{bet_amount * 2} points**\n"
+        f"🤔 Both players, start guessing!"
+    )
 
+@app.on_callback_query(filters.regex("^decline_"))
 async def decline_challenge(client, callback_query):
-    opponent_id = int(callback_query.data.split("_")[1])
-    challenge = challenges.pop(opponent_id, None)
+    await callback_query.message.edit_text("🚫 Challenge declined.")
 
-    if challenge:
-        await callback_query.message.edit_text("🚫 Challenge declined. No points were deducted.")
-
-
-
+@app.on_message(filters.text)
 async def process_challenge_guess(client, message):
     user_id = message.from_user.id
+    text = message.text.strip().lower()
 
-    if user_id not in challenge_games:
-        return
+    for challenger_id, game_data in challenger_data.items():
+        if user_id in [challenger_id, game_data.get("opponent_id")]:
+            word = game_data["word"]
+            bet_amount = game_data["bet_amount"]
 
-    game_data = challenge_games[user_id]
-    word_to_guess = game_data["word"]
-    guess = message.text.strip().lower()
+            if len(text) != len(word):
+                await message.reply("⚠️ Invalid guess length!")
+                return
 
-    if len(guess) != len(word_to_guess):
-        return  
+            feedback = ""
+            word_list = list(word)
 
-    feedback = check_guess(guess, word_to_guess)
-    game_data["history"].append(f"{feedback} → {guess.upper()}")
+            for i, letter in enumerate(text):
+                if letter == word[i]:
+                    feedback += "🟩"
+                    word_list[i] = None
+                elif letter in word_list:
+                    feedback += "🟨"
+                    word_list[word_list.index(letter)] = None
+                else:
+                    feedback += "🟥"
 
-    await message.reply("\n".join(game_data["history"]))
+            await message.reply(f"{feedback} → {text.upper()}")
 
-    if guess == word_to_guess:
-        winner = user_id
-        loser = next(p for p in game_data["players"] if p != winner)
+            if text == word:
+                winner_id = user_id
+                loser_id = game_data["opponent_id"] if user_id == challenger_id else challenger_id
+                total_winnings = bet_amount * 2
 
-        # Retrieve challenge details safely
-        challenge = challenges.get(winner) or challenges.get(loser)
-        if not challenge:
-            print(f"Error: No challenge found for {winner} or {loser}")
+                # Deduct bet amount from the loser and award winnings to the winner
+                update_user_points(loser_id, -bet_amount)
+                update_user_points(winner_id, total_winnings)
+
+                del challenger_data[challenger_id]
+
+                await message.reply(
+                    f"🎉 Congratulations {message.from_user.mention}! 🎉\n"
+                    f"You guessed the word **{word.upper()}** correctly!\n"
+                    f"💰 You won **{total_winnings} points**!"
+                )
             return
-
-        bet_points = challenge["bet"]
-
-        add_points(winner, bet_points * 2)  
-
-        await message.reply(f"🏆 {message.from_user.first_name} won the challenge!\n"
-                            f"🔹 **Winner's new score:** {get_user_score(winner)}\n"
-                            f"🔸 **Loser's new score:** {get_user_score(loser)}")
-
-        # Clean up game data
-        del group_games[winner]
-        del group_games[loser]
-        challenges.pop(winner, None)  # Ensure it's deleted safely
-        challenges.pop(loser, None)
-
