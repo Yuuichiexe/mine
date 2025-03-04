@@ -98,6 +98,17 @@ def get_chat_leaderboard(chat_id, limit=10):
     conn.close()
     return [(row["user_id"], row["score"]) for row in rows]
 
+# Update function names to match `get_user_points` and `update_user_points`
+def get_user_points(user_id):
+    return get_user_score(user_id)
+
+def update_user_points(user_id, points):
+    if points > 0:
+        add_points(user_id, points)
+    else:
+        deduct_points(user_id, abs(points))
+
+
 # Initialize database when script is run
 if __name__ == "database":
     initialize_db()
