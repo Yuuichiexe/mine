@@ -269,22 +269,6 @@ async def help_command(client: Client, message: Message):
 
 
 
-@app.on_message(filters.command("challenge"))
-async def handle_challenge(client, message):
-    await challenge_player(client, message)
-
-@app.on_callback_query(filters.regex("^accept_"))
-async def handle_accept(client, callback_query):
-    await accept_challenge(client, callback_query)
-
-@app.on_callback_query(filters.regex("^decline_"))
-async def handle_decline(client, callback_query):
-    await decline_challenge(client, callback_query)
-
-@app.on_message(filters.text)
-async def handle_guess(client, message):
-    await process_challenge_guess(client, message)
-
 
 app.run()
 
