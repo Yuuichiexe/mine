@@ -77,8 +77,6 @@ def check_guess(guess, word_to_guess):
     return ''.join(feedback)
 
 
-
-
 @app.on_message(filters.command("start"))
 async def start_command(client: Client, message: Message):
     user_id = message.from_user.id
@@ -268,8 +266,4 @@ async def help_command(client: Client, message: Message):
     )
     await message.reply(help_text)
 
-
-
-
-
-
+app.run()
