@@ -3,5 +3,5 @@ from pyrogram import Client
 from mine import app
 
 
-print("WORD MINE BKT HAS BEEN STARTED✅")
+print("WORD MINE BOT HAS BEEN STARTED✅")
 app.run()
