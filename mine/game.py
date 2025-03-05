@@ -37,9 +37,6 @@ group_games = {}
 challenger_data = {}  
 
 
-def start_new_game(word_length):
-    return random.choice(word_lists[word_length])
-
 # Check if a word is valid
 
 def is_valid_english_word(word):
@@ -158,7 +155,7 @@ async def select_new_game_length(client, callback_query):
         return
 
     # Generate a word
-    word = Start_new_game(word_length)
+    word = start_new_game(word_length)
     group_games[user_id] = {"word": word, "length": word_length}  # Store active game
 
     await callback_query.message.edit_text(
