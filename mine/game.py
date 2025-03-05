@@ -34,7 +34,8 @@ word_lists = {length: fetch_words(length) for length in fallback_words}
 
 # Game data storage
 group_games = active_games = {}
-# Bot credentials
+challenger_data = {}  
+
 
 def start_new_game(word_length):
     return random.choice(word_lists[word_length])
@@ -253,56 +254,6 @@ async def process_guess(client: Client, message: Message):
             f"🏆 You earned 1 point!\n"
             f"📊 Your total score: {user_score}\n"
             f"🌍 Your global rank: #{user_rank}"
-        )
-
-@app.on_message(filters.text & ~filters.command(["new", "leaderboard", "chatleaderboard", "end", "help"]))
-async def guess_word(client: Client, message: Message):
-    chat_id = message.chat.id
-    user_id = message.from_user.id
-    user_name = message.from_user.first_name
-    mention = f"[{user_name}](tg://user?id={user_id})"
-
-    if chat_id not in group_games:
-        return
-
-    word_to_guess = group_games[chat_id]["word"]
-    guess = message.text.strip().lower()
-
-    if len(guess) != len(word_to_guess):
-        return  
-
-    if not is_valid_english_word(guess):
-        await message.reply(f"❌ {mention}, this word is not valid. Try another one!")
-        return
-
-    if guess in group_games[chat_id]["used_words"]:
-        await message.reply(f"🔄 {mention}, you already used this word! Try a different one.")
-        return
-
-    group_games[chat_id]["used_words"].add(guess)
-    feedback = check_guess(guess, word_to_guess)
-    
-    group_games[chat_id]["history"].append(f"{feedback} → {guess.upper()}")
-    guess_history = "\n".join(group_games[chat_id]["history"])
-    
-    await message.reply(guess_history)
-
-    if guess == word_to_guess:
-        update_chat_score(chat_id, user_id)
-        update_global_score(user_id)
-        
-        leaderboard = get_global_leaderboard()
-        user_score = next((score for uid, score in leaderboard if uid == user_id), 0)
-        user_rank = next((i + 1 for i, (uid, _) in enumerate(leaderboard) if uid == user_id), "Unranked")
-
-        del group_games[chat_id]
-        
-        await message.reply(
-            f"🎉 Congratulations {mention}! 🎉\n"
-            f"You guessed the word **{word_to_guess.upper()}** correctly!\n"
-            f"🏆 You earned **1 point**!\n"
-            f"📊 Your total score: **{user_score}**\n"
-            f"🌍 Your global rank: **#{user_rank}**"
         )
 
 @app.on_message(filters.command("leaderboard"))
