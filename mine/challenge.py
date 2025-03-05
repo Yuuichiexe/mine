@@ -33,41 +33,6 @@ word_lists = {length: fetch_words(length) for length in fallback_words}
 def get_random_word(word_length):
     return random.choice(word_lists[word_length])
 
-import random
-import requests
-from pyrogram import Client, filters
-from pyrogram.enums import MessageEntityType
-from pyrogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton
-from database import get_user_points, update_user_points
-from mine import app
-
-# Store ongoing challenges
-challenger_data = {}
-
-# Fallback words if API fails
-fallback_words = {
-    4: ["play", "word", "game", "chat"],
-    5: ["guess", "brain", "smart", "think"],
-    6: ["random", "puzzle", "letter", "breeze"],
-    7: ["amazing", "thought", "journey", "fantasy"]
-}
-
-# Fetch words from Datamuse API
-def fetch_words(word_length):
-    try:
-        response = requests.get(f"https://api.datamuse.com/words?sp={'?' * word_length}&max=1000", timeout=5)
-        response.raise_for_status()
-        words = [word["word"] for word in response.json()]
-        return words if words else fallback_words[word_length]
-    except requests.RequestException:
-        return fallback_words[word_length]
-
-# Preload words
-word_lists = {length: fetch_words(length) for length in fallback_words}
-
-def get_random_word(word_length):
-    return random.choice(word_lists[word_length])
-
 
 @app.on_message(filters.command("challenge"))
 async def handle_challenge(client, message):
