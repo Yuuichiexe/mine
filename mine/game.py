@@ -167,6 +167,94 @@ async def select_new_game_length(client, callback_query):
     )
 
 
+@app.on_message(filters.text & ~filters.command(["new", "leaderboard", "chatleaderboard", "end", "help", "start," "challenge"]))
+async def process_guess(client: Client, message: Message):
+    """Handles both normal game and challenge mode guesses."""
+    chat_id = message.chat.id
+    user_id = message.from_user.id
+    user_name = message.from_user.first_name
+    mention = f"[{user_name}](tg://user?id={user_id})"
+    text = message.text.strip().lower()
+
+    # Check if this is a challenge game
+    for challenger_id, game_data in list(challenger_data.items()):
+        if user_id in [challenger_id, game_data.get("opponent_id")]:
+            word = game_data["word"]
+            bet_amount = game_data["bet_amount"]
+
+            if len(text) != len(word):
+                await message.reply("⚠️ Invalid guess length!")
+                return
+
+            feedback = "".join(
+                "🟩" if text[i] == word[i] else ("🟨" if text[i] in word else "🟥")
+                for i in range(len(text))
+            )
+
+            await message.reply(f"{feedback} → {text.upper()}")
+
+            if text == word:
+                winner_id = user_id
+                loser_id = game_data["opponent_id"] if user_id == challenger_id else challenger_id
+                winnings = bet_amount * 2
+
+                update_user_points(winner_id, winnings)
+                total_points = get_user_points(winner_id)
+
+                del challenger_data[challenger_id]
+
+                await message.reply(
+                    f"🎉 Congratulations, {mention}! 🎉\n"
+                    f"🏆 You guessed the word **{word.upper()}** correctly!\n"
+                    f"💰 You won **{winnings} points**!\n"
+                    f"🔥 Your new total: **{total_points} points**!\n"
+                    f"🎯 *Keep challenging and dominate the leaderboard!* 🚀"
+                )
+            return  # Stop further processing since this was a challenge game
+
+    # If not a challenge game, check for a normal /new game
+    if chat_id not in group_games:
+        return  # No active game in this group
+
+    word_to_guess = group_games[chat_id]["word"]
+
+    if len(text) != len(word_to_guess):
+        return  
+
+    if not is_valid_english_word(text):
+        await message.reply(f"❌ {mention}, this word is not valid. Try another one!")
+        return
+
+    if text in group_games[chat_id]["used_words"]:
+        await message.reply(f"🔄 {mention}, you already used this word! Try a different one.")
+        return
+
+    group_games[chat_id]["used_words"].add(text)
+    feedback = check_guess(text, word_to_guess)
+
+    group_games[chat_id]["history"].append(f"{feedback} → {text.upper()}")
+    guess_history = "\n".join(group_games[chat_id]["history"])
+
+    await message.reply(guess_history)
+
+    if text == word_to_guess:
+        update_chat_score(chat_id, user_id)
+        update_global_score(user_id)
+
+        leaderboard = get_global_leaderboard()
+        user_score = next((score for uid, score in leaderboard if uid == user_id), 0)
+        user_rank = next((i + 1 for i, (uid, _) in enumerate(leaderboard) if uid == user_id), "Unranked")
+
+        del group_games[chat_id]
+
+        await message.reply(
+            f"🎉 Congratulations {mention}! 🎉\n"
+            f"You guessed the word {word_to_guess.upper()} correctly!\n"
+            f"🏆 You earned 1 point!\n"
+            f"📊 Your total score: {user_score}\n"
+            f"🌍 Your global rank: #{user_rank}"
+        )
+
 @app.on_message(filters.text & ~filters.command(["new", "leaderboard", "chatleaderboard", "end", "help"]))
 async def guess_word(client: Client, message: Message):
     chat_id = message.chat.id
