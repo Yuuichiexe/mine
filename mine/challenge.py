@@ -33,6 +33,41 @@ word_lists = {length: fetch_words(length) for length in fallback_words}
 def get_random_word(word_length):
     return random.choice(word_lists[word_length])
 
+import random
+import requests
+from pyrogram import Client, filters
+from pyrogram.enums import MessageEntityType
+from pyrogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton
+from database import get_user_points, update_user_points
+from mine import app
+
+# Store ongoing challenges
+challenger_data = {}
+
+# Fallback words if API fails
+fallback_words = {
+    4: ["play", "word", "game", "chat"],
+    5: ["guess", "brain", "smart", "think"],
+    6: ["random", "puzzle", "letter", "breeze"],
+    7: ["amazing", "thought", "journey", "fantasy"]
+}
+
+# Fetch words from Datamuse API
+def fetch_words(word_length):
+    try:
+        response = requests.get(f"https://api.datamuse.com/words?sp={'?' * word_length}&max=1000", timeout=5)
+        response.raise_for_status()
+        words = [word["word"] for word in response.json()]
+        return words if words else fallback_words[word_length]
+    except requests.RequestException:
+        return fallback_words[word_length]
+
+# Preload words
+word_lists = {length: fetch_words(length) for length in fallback_words}
+
+def get_random_word(word_length):
+    return random.choice(word_lists[word_length])
+
 
 @app.on_message(filters.command("challenge"))
 async def handle_challenge(client, message):
@@ -44,21 +79,24 @@ async def handle_challenge(client, message):
 
     bet_amount = int(args[2])
     challenger_id = message.from_user.id
+    opponent_id = None
 
-    if message.reply_to_message:  # If the user replied to someone
+    # Extract opponent from reply or mention
+    if message.reply_to_message:  
         opponent_id = message.reply_to_message.from_user.id
     else:
-        mentioned_usernames = [entity for entity in message.entities if entity.type == "mention"]
-        if not mentioned_usernames:
+        entities = message.entities or []
+        mentioned_usernames = [entity for entity in entities if entity.type == MessageEntityType.MENTION]
+        if mentioned_usernames:
+            mentioned_username = args[1]  
+            try:
+                opponent = await client.get_users(mentioned_username)
+                opponent_id = opponent.id
+            except Exception:
+                await message.reply("⚠️ Invalid username! Make sure the user exists and is not private.", quote=True)
+                return
+        else:
             await message.reply("⚠️ Please reply to a user or tag a valid username!", quote=True)
-            return
-
-        mentioned_username = message.text.split()[1]  # Extract @username
-        try:
-            opponent = await client.get_users(mentioned_username)
-            opponent_id = opponent.id
-        except Exception:
-            await message.reply("⚠️ Invalid username! Make sure the user exists and is not private.", quote=True)
             return
 
     if opponent_id == challenger_id:
@@ -98,7 +136,6 @@ async def handle_challenge(client, message):
     )
 
 
-
 @app.on_callback_query(filters.regex("^challenge_length_"))
 async def select_challenge_length(client, callback_query):
     data = callback_query.data.split("_")
@@ -124,7 +161,8 @@ async def select_challenge_length(client, callback_query):
     await callback_query.message.edit_text(
         f"✅ **{callback_query.from_user.mention} selected a {word_length}-letter word!**\n"
         f"👤 **[{opponent_id}](tg://user?id={opponent_id})**, do you accept?",
-        reply_markup=InlineKeyboardMarkup(buttons)
+        reply_markup=InlineKeyboardMarkup(buttons),
+        parse_mode="Markdown"
     )
 
 @app.on_callback_query(filters.regex("^accept_"))
@@ -202,6 +240,7 @@ async def process_challenge_guess(client, message):
                     f"🏆 You guessed the word **`{word.upper()}`** correctly!\n"
                     f"💰 You won **`{winnings} points`**!\n"
                     f"🔥 Your new total: **`{total_points} points`**!\n"
-                    f"🎯 *Keep challenging and dominate the leaderboard!* 🚀"
+                    f"🎯 *Keep challenging and dominate the leaderboard!* 🚀",
+                    parse_mode="Markdown"
                 )
             return
