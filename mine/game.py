@@ -218,10 +218,10 @@ async def process_guess(client: Client, message: Message):
             return  # Stop further processing since this was a challenge game
 
     # If not a challenge game, check for a normal /new game
-    if chat_id not in group_games:
+    if user_id not in group_games:
         return  # No active game in this group
 
-    word_to_guess = group_games[chat_id]["word"]
+    word_to_guess = group_games[user_id]["word"]
 
     if len(text) != len(word_to_guess):
         return  
@@ -234,10 +234,10 @@ async def process_guess(client: Client, message: Message):
         await message.reply(f"🔄 {mention}, you already used this word! Try a different one.")
         return
 
-    group_games[chat_id]["used_words"].add(text)
+    group_games[uset_id]["used_words"].add(text)
     feedback = check_guess(text, word_to_guess)
 
-    group_games[chat_id]["history"].append(f"{feedback} → {text.upper()}")
+    group_games[user_id]["history"].append(f"{feedback} → {text.upper()}")
     guess_history = "\n".join(group_games[chat_id]["history"])
 
     await message.reply(guess_history)
@@ -250,7 +250,7 @@ async def process_guess(client: Client, message: Message):
         user_score = next((score for uid, score in leaderboard if uid == user_id), 0)
         user_rank = next((i + 1 for i, (uid, _) in enumerate(leaderboard) if uid == user_id), "Unranked")
 
-        del group_games[chat_id]
+        del group_games[user_id]
 
         await message.reply(
             f"🎉 Congratulations {mention}! 🎉\n"
