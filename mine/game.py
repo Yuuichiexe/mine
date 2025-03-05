@@ -234,7 +234,7 @@ async def process_guess(client: Client, message: Message):
         await message.reply(f"🔄 {mention}, you already used this word! Try a different one.")
         return
 
-    group_games[uset_id]["used_words"].add(text)
+    group_games[user_id]["used_words"].add(text)
     feedback = check_guess(text, word_to_guess)
 
     group_games[user_id]["history"].append(f"{feedback} → {text.upper()}")
