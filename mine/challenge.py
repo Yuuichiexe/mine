@@ -126,8 +126,7 @@ async def select_challenge_length(client, callback_query):
     await callback_query.message.edit_text(
         f"✅ **{callback_query.from_user.mention} selected a {word_length}-letter word!**\n"
         f"👤 **[{opponent_id}](tg://user?id={opponent_id})**, do you accept?",
-        reply_markup=InlineKeyboardMarkup(buttons),
-        parse_mode="Markdown"
+        reply_markup=InlineKeyboardMarkup(buttons)
     )
 
 @app.on_callback_query(filters.regex("^accept_"))
@@ -205,7 +204,6 @@ async def process_challenge_guess(client, message):
                     f"🏆 You guessed the word **`{word.upper()}`** correctly!\n"
                     f"💰 You won **`{winnings} points`**!\n"
                     f"🔥 Your new total: **`{total_points} points`**!\n"
-                    f"🎯 *Keep challenging and dominate the leaderboard!* 🚀",
-                    parse_mode="Markdown"
+                    f"🎯 *Keep challenging and dominate the leaderboard!* 🚀"
                 )
             return
