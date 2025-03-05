@@ -191,7 +191,7 @@ async def process_guess(client: Client, message: Message):
                 await message.reply("⚠️ Invalid guess length!")
                 return
 
-            feedback = check_guess(text, word_to_guess)
+            feedback = check_guess(text, word)
 
             await message.reply(f"{feedback} → {text.upper()}")
 
