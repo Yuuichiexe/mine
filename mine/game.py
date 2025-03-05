@@ -158,7 +158,7 @@ async def select_new_game_length(client, callback_query):
         return
 
     # Generate a word
-    word = get_random_word(word_length)
+    word = Start_new_game(word_length)
     group_games[user_id] = {"word": word, "length": word_length}  # Store active game
 
     await callback_query.message.edit_text(
@@ -168,7 +168,7 @@ async def select_new_game_length(client, callback_query):
     )
 
 
-@app.on_message(filters.text & ~filters.command(["new", "leaderboard", "chatleaderboard", "end", "help", "start," "challenge"]))
+@app.on_message(filters.text & ~filters.command(["new", "leaderboard", "chatleaderboard", "end", "help", "start" "challenge"]))
 async def process_guess(client: Client, message: Message):
     """Handles both normal game and challenge mode guesses."""
     chat_id = message.chat.id
