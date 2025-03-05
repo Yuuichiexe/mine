@@ -33,8 +33,7 @@ def fetch_words(word_length, max_words=100000):
 word_lists = {length: fetch_words(length) for length in fallback_words}
 
 # Game data storage
-group_games = {}
-
+group_games = active_games = {}
 # Bot credentials
 
 def start_new_game(word_length):
@@ -132,11 +131,20 @@ async def back_to_start(client, callback_query):
 
 
 @app.on_message(filters.command("new"))
-async def new_game(client: Client, message: Message):
-    chat_id = message.chat.id
-    buttons = [[InlineKeyboardButton(f"{i} Letters", callback_data=f"start_{i}")] for i in range(4, 8)]
-    await message.reply("Choose a word length to start the game:", reply_markup=InlineKeyboardMarkup(buttons))
+async def start_new_game(client, message):
+    user_id = message.from_user.id
 
+    buttons = [
+        [InlineKeyboardButton("4 Letters", callback_data=f"new_length_4_{user_id}")],
+        [InlineKeyboardButton("5 Letters", callback_data=f"new_length_5_{user_id}")],
+        [InlineKeyboardButton("6 Letters", callback_data=f"new_length_6_{user_id}")],
+        [InlineKeyboardButton("7 Letters", callback_data=f"new_length_7_{user_id}")],
+    ]
+
+    await message.reply(
+        "📌 **Select a word length for your game:**",
+        reply_markup=InlineKeyboardMarkup(buttons),
+    )
 
 @app.on_callback_query(filters.regex("^new_length_"))
 async def select_new_game_length(client, callback_query):
