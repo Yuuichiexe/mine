@@ -137,16 +137,27 @@ async def new_game(client: Client, message: Message):
     buttons = [[InlineKeyboardButton(f"{i} Letters", callback_data=f"start_{i}")] for i in range(4, 8)]
     await message.reply("Choose a word length to start the game:", reply_markup=InlineKeyboardMarkup(buttons))
 
-@app.on_callback_query()
-async def select_word_length(client, callback_query):
-    await callback_query.answer()
-    chat_id = callback_query.message.chat.id
-    word_length = int(callback_query.data.split("_")[1])
-    
-    word_to_guess = start_new_game(word_length)
-    group_games[chat_id] = {"word": word_to_guess, "history": [], "used_words": set()}
-    
-    await callback_query.message.edit_text(f"A new {word_length}-letter game has started! Guess a word.")
+
+@app.on_callback_query(filters.regex("^new_length_"))
+async def select_new_game_length(client, callback_query):
+    data = callback_query.data.split("_")
+    word_length = int(data[2])
+    user_id = int(data[3])
+
+    if user_id != callback_query.from_user.id:
+        await callback_query.answer("⚠️ This selection is not for you!", show_alert=True)
+        return
+
+    # Generate a word
+    word = get_random_word(word_length)
+    active_games[user_id] = {"word": word, "length": word_length}  # Store active game
+
+    await callback_query.message.edit_text(
+        f"🆕 **New Word Game Started!**\n"
+        f"🔤 **Word Length:** `{word_length}`\n"
+        f"🤔 Start guessing!"
+    )
+
 
 @app.on_message(filters.text & ~filters.command(["new", "leaderboard", "chatleaderboard", "end", "help"]))
 async def guess_word(client: Client, message: Message):
