@@ -33,7 +33,7 @@ def fetch_words(word_length, max_words=100000):
 word_lists = {length: fetch_words(length) for length in fallback_words}
 
 # Game data storage
-group_games = active_games = {}
+group_games = {}
 challenger_data = {}  
 
 
@@ -159,7 +159,7 @@ async def select_new_game_length(client, callback_query):
 
     # Generate a word
     word = get_random_word(word_length)
-    active_games[user_id] = {"word": word, "length": word_length}  # Store active game
+    group_games[user_id] = {"word": word, "length": word_length}  # Store active game
 
     await callback_query.message.edit_text(
         f"🆕 **New Word Game Started!**\n"
