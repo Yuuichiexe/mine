@@ -155,7 +155,7 @@ async def select_new_game_length(client, callback_query):
         return
 
     # Generate a word
-    word = start_new_game(word_length)
+    word = random.choice(word_lists[word_length])
     group_games[user_id] = {"word": word, "length": word_length}  # Store active game
 
     await callback_query.message.edit_text(
