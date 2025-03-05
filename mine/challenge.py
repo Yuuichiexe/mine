@@ -187,7 +187,7 @@ async def process_challenge_guess(client, message):
                 for i in range(len(text))
             )
 
-            await message.reply(f"{feedback} → `{text.upper()}`", parse_mode="Markdown")
+            await message.reply(f"{feedback} → `{text.upper()}`")
 
             if text == word:
                 winner_id = user_id
