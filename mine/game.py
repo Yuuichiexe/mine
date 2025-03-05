@@ -156,8 +156,15 @@ async def select_new_game_length(client, callback_query):
 
     # Generate a word
     word = random.choice(word_lists[word_length])
-    group_games[user_id] = {"word": word, "length": word_length}  # Store active game
+      # Store active game
+    group_games[user_id] = {
+    "word": word,
+    "length": word_length,
+    "used_words": set(),
+    "history": []
+    }
 
+    
     await callback_query.message.edit_text(
         f"🆕 **New Word Game Started!**\n"
         f"🔤 **Word Length:** `{word_length}`\n"
