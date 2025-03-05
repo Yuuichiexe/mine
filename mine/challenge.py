@@ -166,9 +166,9 @@ async def decline_challenge(client, callback_query):
         return
 
     del challenger_data[challenger_id]
-    await callback_query.message.edit_text("🚫 **Challenge declined.**", parse_mode="Markdown")
+    await callback_query.message.edit_text("🚫 **Challenge declined.**")
 
-@app.on_message(filters.text & ~filters.command(["new", "leaderboard", "chatleaderboard", "end", "help"]))
+@app.on_message(filters.text & ~filters.command(["new", "leaderboard", "chatleaderboard", "end", "help", "start"]))
 async def process_challenge_guess(client, message):
     user_id = message.from_user.id
     text = message.text.strip().lower()
