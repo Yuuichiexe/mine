@@ -6,7 +6,7 @@ from pyrogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton, 
 from database import update_global_score, update_chat_score, get_global_leaderboard, get_chat_leaderboard
 from mine import app
 from mine.challenge import *
-
+from mine.cd import challenger_data
 # Fallback words in case the API fails
 fallback_words = {
     4: ["play", "word", "game", "chat"],
@@ -34,7 +34,7 @@ word_lists = {length: fetch_words(length) for length in fallback_words}
 
 # Game data storage
 group_games = {}
-challenger_data = {}  
+
 
 
 # Check if a word is valid
