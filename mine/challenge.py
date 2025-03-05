@@ -5,7 +5,7 @@ from pyrogram.enums import MessageEntityType
 from pyrogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton
 from database import get_user_points, update_user_points
 from mine import app
-from mine.game import challenger_data
+from mine.cd import challenger_data
 # Store ongoing challenges
 
 
