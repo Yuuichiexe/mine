@@ -168,42 +168,4 @@ async def decline_challenge(client, callback_query):
     del challenger_data[challenger_id]
     await callback_query.message.edit_text("🚫 **Challenge declined.**")
 
-@app.on_message(filters.text & ~filters.command(["new", "leaderboard", "chatleaderboard", "end", "help", "start"]))
-async def process_challenge_guess(client, message):
-    user_id = message.from_user.id
-    text = message.text.strip().lower()
 
-    for challenger_id, game_data in list(challenger_data.items()):
-        if user_id in [challenger_id, game_data.get("opponent_id")]:
-            word = game_data["word"]
-            bet_amount = game_data["bet_amount"]
-
-            if len(text) != len(word):
-                await message.reply("⚠️ Invalid guess length!")
-                return
-
-            feedback = "".join(
-                "🟩" if text[i] == word[i] else ("🟨" if text[i] in word else "🟥")
-                for i in range(len(text))
-            )
-
-            await message.reply(f"{feedback} → `{text.upper()}`")
-
-            if text == word:
-                winner_id = user_id
-                loser_id = game_data["opponent_id"] if user_id == challenger_id else challenger_id
-                winnings = bet_amount * 2
-
-                update_user_points(winner_id, winnings)  # Winner gets total bet amount
-                total_points = get_user_points(winner_id)  # Get updated total points
-
-                del challenger_data[challenger_id]
-
-                await message.reply(
-                    f"🎉 **Congratulations, {message.from_user.mention}!** 🎉\n"
-                    f"🏆 You guessed the word **`{word.upper()}`** correctly!\n"
-                    f"💰 You won **`{winnings} points`**!\n"
-                    f"🔥 Your new total: **`{total_points} points`**!\n"
-                    f"🎯 *Keep challenging and dominate the leaderboard!* 🚀"
-                )
-            return
