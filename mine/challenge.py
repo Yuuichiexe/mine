@@ -144,8 +144,8 @@ async def accept_challenge(client, callback_query):
     bet_amount = game_data["bet_amount"]
 
     # Deduct bet from both players initially
-    update_user_points(challenger_id, -bet_amount)
-    update_user_points(opponent_id, -bet_amount)
+    update_user_points(challenger_id, chat_id, -bet_amount)
+    update_user_points(opponent_id, chat_id, -bet_amount)
 
     challenger_data[challenger_id]["word"] = word
 
