@@ -117,6 +117,9 @@ def get_chat_leaderboard(chat_id, limit=10):
     conn.close()
     return [(row["user_id"], row["score"]) for row in rows]
 
+def get_user_points(user_id):  
+    return get_user_score(user_id)
+
 # Update both global and chat leaderboards
 def update_user_points(user_id, chat_id, points):
     if points > 0:
