@@ -197,10 +197,12 @@ async def process_guess(client: Client, message: Message):
 
             if text == word:
                 winner_id = user_id
+                chat_id = message.chat.id
                 loser_id = game_data["opponent_id"] if user_id == challenger_id else challenger_id
                 winnings = bet_amount * 2
 
-                update_user_points(winner_id, winnings)
+                update_user_points(winner_id, chat_id, winnings)
+                update_user_points(loser_id, chat_id)
                 total_points = get_user_points(winner_id)
 
                 del challenger_data[challenger_id]
