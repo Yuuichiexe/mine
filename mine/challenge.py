@@ -132,7 +132,7 @@ async def select_challenge_length(client, callback_query):
 @app.on_callback_query(filters.regex("^accept_"))
 async def accept_challenge(client, callback_query):
     opponent_id = callback_query.from_user.id
-    chat_id = callback_query.from_chat.id
+    chat_id = callback_query.message.chat.id 
     challenger_id = int(callback_query.data.split("_")[1])
 
     if challenger_id not in challenger_data or challenger_data[challenger_id]["opponent_id"] != opponent_id:
