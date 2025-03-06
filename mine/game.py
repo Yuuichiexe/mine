@@ -202,7 +202,6 @@ async def process_guess(client: Client, message: Message):
                 winnings = bet_amount * 2
 
                 update_user_points(winner_id, chat_id, winnings)
-                update_user_points(loser_id, chat_id)
                 total_points = get_user_points(winner_id)
 
                 del challenger_data[challenger_id]
