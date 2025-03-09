@@ -138,7 +138,6 @@ async def select_new_game_length(client, callback_query):
     word = random.choice(list(word_lists[word_length]))
     group_games[chat_id] = {
     "word": word,
-    "length": word_length,
     "used_words": set(),
     "history": []
     }
@@ -192,6 +191,9 @@ async def process_guess(client, message):
     
     group_games[chat_id]["used_words"].add(text)
     feedback = check_guess(text, word_to_guess)
+    feedback = check_guess(text, word_to_guess)
+    print(f"DEBUG: Feedback for '{text}': {feedback}")
+
 
     group_games[chat_id]["history"].append(f"{feedback} → {text.upper()}")
     guess_history = "\n".join(group_games[chat_id]["history"])
