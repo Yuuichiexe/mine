@@ -180,9 +180,12 @@ async def process_guess(client, message):
                 )
             return
 
-    # Regular game mode
-    if chat_id not in group_games or len(text) != len(group_games[chat_id]["word"]):
-        return
+
+
+    if chat_id not in group_games:
+    print(f"DEBUG: No active game found in {chat_id}")
+    return
+
 
     word_to_guess = group_games[chat_id]["word"]
     if text in group_games[chat_id]["used_words"] or not await is_valid_english_word(text):
