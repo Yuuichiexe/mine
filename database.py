@@ -1,74 +1,71 @@
-import sqlite3
-import os
+from pymongo import MongoClient, ASCENDING, DESCENDING
 
-# Path to the database file (change as needed)
-DB_PATH = os.getenv("DB_PATH", "word_mine_bot.db")
+# MongoDB Connection
+DATABASE_URL = "mongodb+srv://Apple:music@cluster0.izvyz.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0"
+client = MongoClient(DATABASE_URL)
+mongo_db = client["word_test"]
+db = mongo_db
 
-def get_connection():
-    conn = sqlite3.connect(DB_PATH)
-    conn.row_factory = sqlite3.Row
-    return conn
+# Collections
+global_scores = db["global_scores"]
+chat_scores = db["chat_scores"]
+usersdb = db["users"]
+chatsdb = db["chats"]
 
-def initialize_db():
-    conn = get_connection()
-    c = conn.cursor()
-    # Create table for global scores
-    c.execute('''
-        CREATE TABLE IF NOT EXISTS global_scores (
-            user_id INTEGER PRIMARY KEY,
-            score INTEGER NOT NULL DEFAULT 0
-        )
-    ''')
-    # Create table for chat scores
-    c.execute('''
-        CREATE TABLE IF NOT EXISTS chat_scores (
-            chat_id INTEGER NOT NULL,
-            user_id INTEGER NOT NULL,
-            score INTEGER NOT NULL DEFAULT 0,
-            PRIMARY KEY (chat_id, user_id)
-        )
-    ''')
-    conn.commit()
-    conn.close()
+# Ensure Indexes for Performance
+global_scores.create_index([("score", DESCENDING)])
+chat_scores.create_index([("chat_id", ASCENDING), ("score", DESCENDING)])
 
-# Get user's current score
+
+# ** User Management **  
+def is_served_user(user_id: int) -> bool:
+    return usersdb.find_one({"user_id": user_id}) is not None
+
+def get_served_users() -> list:
+    return [user["user_id"] for user in usersdb.find({}, {"_id": 0, "user_id": 1})]
+
+def add_served_user(user_id: int):
+    if not is_served_user(user_id):
+        usersdb.insert_one({"user_id": user_id})
+        print(f"🆕 New User Added: {user_id}")  # ✅ Print user ID when added
+
+# ** Chat Management **  
+def is_served_chat(chat_id: int) -> bool:
+    return chatsdb.find_one({"chat_id": chat_id}) is not None
+
+def get_served_chats() -> list:
+    return [chat["chat_id"] for chat in chatsdb.find({}, {"_id": 0, "chat_id": 1})]
+
+def add_served_chat(chat_id: int):
+    if not is_served_chat(chat_id):
+        chatsdb.insert_one({"chat_id": chat_id})
+        print(f"🆕 New Chat Added: {chat_id}")  # ✅ Print chat ID when added
+
+
+# Users Global and chat scores 
+
 def get_user_score(user_id):
-    conn = get_connection()
-    c = conn.cursor()
-    c.execute("SELECT score FROM global_scores WHERE user_id = ?", (user_id,))
-    row = c.fetchone()
-    conn.close()
-    return row["score"] if row else 0  # Default to 0 if user not found
+    user = global_scores.find_one({"user_id": user_id}, {"_id": 0, "score": 1})
+    return user["score"] if user else 0  # Default to 0 if user not found
 
-# Get user's current score in a chat
 def get_chat_user_score(chat_id, user_id):
-    conn = get_connection()
-    c = conn.cursor()
-    c.execute("SELECT score FROM chat_scores WHERE chat_id = ? AND user_id = ?", (chat_id, user_id))
-    row = c.fetchone()
-    conn.close()
-    return row["score"] if row else 0  # Default to 0 if user not found
+    user = chat_scores.find_one({"chat_id": chat_id, "user_id": user_id}, {"_id": 0, "score": 1})
+    return user["score"] if user else 0  # Default to 0 if user not found
 
-# Add points to a user globally
 def add_points(user_id, points):
-    conn = get_connection()
-    c = conn.cursor()
-    c.execute("""
-        INSERT INTO global_scores (user_id, score) VALUES (?, ?)
-        ON CONFLICT(user_id) DO UPDATE SET score = score + ?
-    """, (user_id, points, points))
-    conn.commit()
-    conn.close()
+    global_scores.update_one(
+        {"user_id": user_id},
+        {"$inc": {"score": points}},
+        upsert=True  # Create if user doesn't exist
+    )
 
-# Deduct points from a user globally (without going negative)
 def deduct_points(user_id, points):
-    conn = get_connection()
-    c = conn.cursor()
     current_score = get_user_score(user_id)
     new_score = max(0, current_score - points)  # Prevent negative points
-    c.execute("UPDATE global_scores SET score = ? WHERE user_id = ?", (new_score, user_id))
-    conn.commit()
-    conn.close()
+    global_scores.update_one(
+        {"user_id": user_id},
+        {"$set": {"score": new_score}}
+    )
 
 # Update global score
 def update_global_score(user_id, points=1):
@@ -78,58 +75,64 @@ def update_global_score(user_id, points=1):
 def get_user_balance(user_id):
     return get_user_score(user_id)
 
-# Update chat-specific score
 def update_chat_score(chat_id, user_id, points=1):
-    conn = get_connection()
-    c = conn.cursor()
-    c.execute("""
-        INSERT INTO chat_scores (chat_id, user_id, score) VALUES (?, ?, ?)
-        ON CONFLICT(chat_id, user_id) DO UPDATE SET score = score + ?
-    """, (chat_id, user_id, points, points))
-    conn.commit()
-    conn.close()
+    chat_scores.update_one(
+        {"chat_id": chat_id, "user_id": user_id},
+        {"$inc": {"score": points}},
+        upsert=True
+    )
 
-# Deduct points from a user's chat-specific score
 def deduct_chat_points(chat_id, user_id, points):
-    conn = get_connection()
-    c = conn.cursor()
     current_score = get_chat_user_score(chat_id, user_id)
     new_score = max(0, current_score - points)  # Prevent negative points
-    c.execute("UPDATE chat_scores SET score = ? WHERE chat_id = ? AND user_id = ?", (new_score, chat_id, user_id))
-    conn.commit()
-    conn.close()
+    chat_scores.update_one(
+        {"chat_id": chat_id, "user_id": user_id},
+        {"$set": {"score": new_score}}
+    )
 
-# Get global leaderboard
-def get_global_leaderboard(limit=10):
-    conn = get_connection()
-    c = conn.cursor()
-    c.execute("SELECT user_id, score FROM global_scores ORDER BY score DESC LIMIT ?", (limit,))
-    rows = c.fetchall()
-    conn.close()
-    return [(row["user_id"], row["score"]) for row in rows]
-
-# Get chat-specific leaderboard
-def get_chat_leaderboard(chat_id, limit=10):
-    conn = get_connection()
-    c = conn.cursor()
-    c.execute("SELECT user_id, score FROM chat_scores WHERE chat_id=? ORDER BY score DESC LIMIT ?", (chat_id, limit))
-    rows = c.fetchall()
-    conn.close()
-    return [(row["user_id"], row["score"]) for row in rows]
 
 def get_user_points(user_id):  
     return get_user_score(user_id)
 
-# Update both global and chat leaderboards
 def update_user_points(user_id, chat_id, points):
     if points > 0:
         add_points(user_id, points)  # Global leaderboard update
         update_chat_score(chat_id, user_id, points)  # Chat leaderboard update
     else:
         deduct_points(user_id, abs(points))  # Global leaderboard update
-        deduct_chat_points(chat_id, user_id, abs(points))  # Chat leaderboard update
+        deduct_chat_points(chat_id, user_id, abs(points))  
+        
+#  Leaderboard and Score Management 
+def update_global_score(user_id: int, points: int = 1):
+    global_scores.update_one(
+        {"user_id": user_id},
+        {"$inc": {"score": points}},
+        upsert=True
+    )
+    updated_user = global_scores.find_one({"user_id": user_id})
+    print(f"Updated Global Score: {updated_user}")  # Debugging output
 
-# Initialize database when script is run
-if __name__ == "database":
-    initialize_db()
-    print("Database initialized.")
+def update_chat_score(chat_id: int, user_id: int, points: int = 1):
+    chat_scores.update_one(
+        {"chat_id": chat_id, "user_id": user_id},
+        {"$inc": {"score": points}},
+        upsert=True
+    )
+    updated_user = chat_scores.find_one({"chat_id": chat_id, "user_id": user_id})
+    print(f"Updated Chat Score: {updated_user}")  # Debugging output
+
+
+def get_global_leaderboard():
+    leaderboard = list(mongo_db.global_scores.find({}, {"user_id": 1, "score": 1}))
+    leaderboard = sorted(leaderboard, key=lambda x: x["score"], reverse=True)  # Ensure sorting
+    return [(entry["user_id"], entry["score"]) for entry in leaderboard]  # Return correct format
+
+
+def get_chat_leaderboard(chat_id):
+    """Retrieve the chat-specific leaderboard sorted by score."""
+    leaderboard = list(
+        mongo_db.chat_scores.find({"chat_id": chat_id}, {"user_id": 1, "score": 1}).sort("score", -1)
+    )
+    return leaderboard
+
+# ** Debugging: Fetch and Print Leaderboards **
