@@ -11,6 +11,7 @@ from mine import app
 from mine.challenge import *
 from mine.cd import challenger_data, fallback_words
 
+group_games = {}
 
 LOGGER_GROUP_ID = -1002358816253  # Replace with your actual Logger Group ID
 
@@ -114,7 +115,7 @@ async def select_new_game_length(client, callback_query):
 
     await callback_query.message.edit_text(f"**New Game Started!** ✅\n🛡 **Word Length:** `{word_length}`\n🤔 Start guessing!")
 
-@app.on_message(filters.text & ~filters.command(["new", "leaderboard", "chatleaderboard", "end", "help", "challenge"]))
+@app.on_message(filters.text & ~filters.command(["new", "leaderboard", "chatleaderboard", "end", "help", "challenge", "start"]))
 async def process_guess(client, message):
     """Handles word guessing."""
     chat_id, user_id, text = message.chat.id, message.from_user.id, message.text.strip().lower()
