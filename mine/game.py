@@ -194,7 +194,6 @@ async def process_guess(client, message):
     
     group_games[chat_id]["used_words"].add(text)
     feedback = check_guess(text, word_to_guess)
-    feedback = check_guess(text, word_to_guess)
     print(f"DEBUG: Feedback for '{text}': {feedback}")
 
 
