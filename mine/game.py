@@ -68,6 +68,7 @@ async def start_command(client, message):
     """Start command with inline buttons."""
     user_id = message.from_user.id
     user_name = message.from_user.first_name
+    mention = message.from_user.mention
     add_served_user(user_id)
 
     welcome_text = (
