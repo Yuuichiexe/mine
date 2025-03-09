@@ -184,7 +184,7 @@ async def process_guess(client, message):
 
     if chat_id not in group_games:
     print(f"DEBUG: No active game found in {chat_id}")
-    return
+        return
 
 
     word_to_guess = group_games[chat_id]["word"]
