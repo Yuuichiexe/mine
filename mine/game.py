@@ -135,7 +135,7 @@ async def select_new_game_length(client, callback_query):
         await callback_query.answer("⚠️ This is not your game!", show_alert=True)
         return
 
-    random.choice(list(word_lists[word_length]))
+    word = random.choice(list(word_lists[word_length]))
     group_games[chat_id] = {
     "word": word,
     "length": word_length,
