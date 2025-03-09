@@ -183,7 +183,7 @@ async def process_guess(client, message):
 
 
     if chat_id not in group_games:
-    print(f"DEBUG: No active game found in {chat_id}")
+        print(f"DEBUG: No active game found in {chat_id}")
         return
 
 
