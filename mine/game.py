@@ -160,10 +160,14 @@ async def process_guess(client, message):
     if text in group_games[chat_id]["used_words"] or not await is_valid_english_word(text):
         return
 
-
+    
     group_games[chat_id]["used_words"].add(text)
     feedback = check_guess(text, word_to_guess)
-    await message.reply(f"{feedback} → {text.upper()}")
+
+    group_games[chat_id]["history"].append(f"{feedback} → {text.upper()}")
+    guess_history = "\n".join(group_games[chat_id]["history"])
+
+    await message.reply(guess_history)
 
     if text == word_to_guess:
         update_chat_score(chat_id, user_id)
