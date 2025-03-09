@@ -115,7 +115,7 @@ async def select_new_game_length(client, callback_query):
 
     await callback_query.message.edit_text(f"**New Game Started!** ✅\n🛡 **Word Length:** `{word_length}`\n🤔 Start guessing!")
 
-@app.on_message(filters.text & ~filters.command(["new", "leaderboard", "chatleaderboard", "end", "help"]))
+@app.on_message(filters.text & ~filters.command(["new", "leaderboard", "chatleaderboard", "end", "help", "challenge"]))
 async def process_guess(client, message):
     """Handles word guessing."""
     chat_id, user_id, text = message.chat.id, message.from_user.id, message.text.strip().lower()
