@@ -94,6 +94,30 @@ async def start_command(client, message):
         reply_markup=buttons
     )
 
+@app.on_callback_query(filters.regex("^commands$"))
+async def show_commands(client, callback_query):
+    commands_text = (
+        "**Word Mine Bot Help**\n\n"
+        "🎮 **Commands:**\n"
+        "- /start - Start the bot and see the welcome message\n"
+        "- /new - Start a new word guessing game\n"
+        "- /end - End the current game\n"
+        "- /leaderboard - View the global leaderboard\n"
+        "- /chatleaderboard - View the chat leaderboard\n"
+        "- /help - Show this help message\n"
+    )
+    
+    await callback_query.message.edit_text(commands_text, reply_markup=InlineKeyboardMarkup([
+        [InlineKeyboardButton("🔙 Back", callback_data="back_to_start")]
+    ]))
+
+
+@app.on_callback_query(filters.regex("^back_to_start$"))
+async def back_to_start(client, callback_query):
+    await callback_query.message.delete()  # Delete the previous message
+    await start_command(client, callback_query.message)  # Send a new start message
+
+
 @app.on_message(filters.command("new"))
 async def start_new_game(client, message):
     """New game selection with inline buttons."""
@@ -111,9 +135,14 @@ async def select_new_game_length(client, callback_query):
         await callback_query.answer("⚠️ This is not your game!", show_alert=True)
         return
 
-    word = random.choice(list(word_lists[word_length]))
-    group_games[chat_id] = {"word": word, "used_words": set()}
-
+    word = random.choice((word_lists[word_length]))
+    group_games[chat_id] = {
+    "word": word,
+    "length": word_length,
+    "used_words": set(),
+    "history": []
+    }
+    
     await callback_query.message.edit_text(f"**New Game Started!** ✅\n🛡 **Word Length:** `{word_length}`\n🤔 Start guessing!")
 
 @app.on_message(filters.text & ~filters.command(["new", "leaderboard", "chatleaderboard", "end", "help", "challenge", "start"]))
