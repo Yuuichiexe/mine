@@ -9,11 +9,10 @@ from database import (
 )
 from mine import app
 from mine.challenge import *
-from mine.cd import challenger_data
+from mine.cd import challenger_data, fallback_words
 
 
 LOGGER_GROUP_ID = -1002358816253  # Replace with your actual Logger Group ID
-app = Client("WordMineBot")
 
 # Preload word lists for faster local validation
 word_lists = {length: set(fallback_words[length]) for length in fallback_words}
