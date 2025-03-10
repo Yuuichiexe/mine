@@ -141,6 +141,9 @@ async def select_new_game_length(client, callback_query):
     "used_words": set(),
     "history": []
     }
+
+    print(f"DEBUG: Game started in chat {chat_id} with word {word}")
+
     
     await callback_query.message.edit_text(f"**New Game Started!** ✅\n🛡 **Word Length:** `{word_length}`\n🤔 Start guessing!")
 
