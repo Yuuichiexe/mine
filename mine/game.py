@@ -226,6 +226,15 @@ async def process_guess(client, message):
         definition = await fetch_word_definition(word_to_guess)
 
         await message.reply(
+            f"🎉 Congratulations {mention}! 🎉\n"
+            f"You guessed the word {word_to_guess.upper()} correctly!\n"
+            f"🏆 You earned 1 point!\n"
+            f"📊 Your total score: {user_score}\n"
+            f"🌍 Your global rank: #{user_rank}"
+            f"Definition: {definition}"
+        )
+
+
     
 
 @app.on_message(filters.command("chatleaderboard"))
