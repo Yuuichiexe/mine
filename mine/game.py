@@ -31,8 +31,18 @@ async def fetch_word_definition(word):
             return "No definition available."
 
 async def is_valid_english_word(word):
-    """Check if a word is valid locally (faster)."""
-    return word in word_lists.get(len(word), set())
+    """Check if a word is valid using an external API."""
+    url = f"https://api.dictionaryapi.dev/api/v2/entries/en/{word}"
+    async with aiohttp.ClientSession() as session:
+        try:
+            async with session.get(url, timeout=3) as response:
+                if response.status == 200:
+                    data = await response.json()
+                    return bool(data)  # If API returns data, word is valid
+        except:
+            return False  # Assume invalid if API request fails
+    return False
+
 
 def check_guess(guess, word_to_guess):
     """Optimized word checking using dictionary instead of list."""
@@ -160,7 +170,6 @@ async def process_guess(client, message):
         if user_id in [challenger_id, game_data["opponent_id"]]:
             word, bet_amount = game_data["word"], game_data["bet_amount"]
             if len(text) != len(word):
-                await message.reply("⚠️ Invalid length!")
                 return
 
             feedback = check_guess(text, word)
@@ -193,7 +202,6 @@ async def process_guess(client, message):
     word_to_guess = group_games[chat_id]["word"]
 
     if len(text) != len(word_to_guess):
-        await message.reply("⚠️ Invalid word length!")
         return
 
     is_valid = await is_valid_english_word(text)
