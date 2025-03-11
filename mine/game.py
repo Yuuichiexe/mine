@@ -2,6 +2,7 @@ import asyncio
 import random
 import aiohttp
 from pyrogram import Client, filters
+from pyrogram.enums import ParseMode
 from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 from database import (
     update_global_score, update_chat_score, get_global_leaderboard, 
@@ -35,7 +36,7 @@ async def fetch_word_definition(word):
 
 async def is_valid_english_word(word):
     """Check if a word is valid using an external API with caching."""
-    url = f"https://api.dictionaryapi.dev/api/v2/entries/en/{word}"
+    url = f"https://api.datamuse.com/words?sp={word}"
     try:
         async with session.get(url, timeout=3) as response:
             return response.status == 200
@@ -204,7 +205,8 @@ async def process_guess(client, message):
                 f"🏆 You earned 1 point!\n"
                 f"📊 Your total score: {user_score}\n"
                 f"🌍 Your global rank: #{user_rank}\n"
-                f"📖 Definition:\n```{definition}```"
+                f"```\n{definition}```\n\n",
+                parse_mode=ParseMode.MARKDOWN
             )
         return
 
@@ -234,7 +236,8 @@ async def process_guess(client, message):
                     f"🏆 You guessed the word **{word.upper()}** correctly!\n"
                     f"💰 You won **{winnings} points**!\n"
                     f"🔥 Your new total: **{total_points} points**!\n"
-                    f"📖 Definition:\n```{definition}```"
+                    f"```\n{definition}```\n\n",
+                    parse_mode=ParseMode.MARKDOWN
                 )
             return
 
