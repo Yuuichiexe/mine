@@ -159,16 +159,60 @@ async def select_new_game_length(client, callback_query):
 
 @app.on_message(filters.text & ~filters.command(["new", "leaderboard", "chatleaderboard", "end", "help", "challenge", "start"]))
 async def process_guess(client, message):
-    """Handles word guessing."""
-    chat_id, user_id, text, mention = message.chat.id, message.from_user.id, message.text.strip().lower(), message.from_user.mention
-    print(f"DEBUG: Received guess '{text}' from user {user_id} in chat {chat_id}")
-
+    """Handles word guessing with group games first, then challenge mode."""
+    chat_id, user_id, text = message.chat.id, message.from_user.id, message.text.strip().lower()
     mention = f"[{message.from_user.first_name}](tg://user?id={user_id})"
 
-    # Check if user is in challenge mode
+    # Check if there's an active group game
+    if chat_id in group_games:
+        word_to_guess = group_games[chat_id]["word"]
+
+        if len(text) != len(word_to_guess):
+            return
+
+        if text in group_games[chat_id]["used_words"]:
+            await message.reply(f"🔄 {mention}, you already used this word! Try a different one.")
+            return
+
+        is_valid = await is_valid_english_word(text)
+        if not is_valid:
+            await message.reply("⚠️ Not a valid English word!")
+            return
+
+        feedback = check_guess(text, word_to_guess)
+        group_games[chat_id]["used_words"].add(text)
+        group_games[chat_id]["history"].append(f"{feedback} → {text.upper()}")
+        guess_history = "\n".join(group_games[chat_id]["history"])
+
+        await message.reply(guess_history)
+
+        if text == word_to_guess:
+            update_chat_score(chat_id, user_id)
+            update_global_score(user_id)
+
+            leaderboard = get_global_leaderboard()
+            user_score = next((score for uid, score in leaderboard if uid == user_id), 0)
+            user_rank = next((i + 1 for i, (uid, _) in enumerate(leaderboard) if uid == user_id), "Unranked")
+
+            del group_games[chat_id]
+
+            definition = await fetch_word_definition(word_to_guess)
+
+            await message.reply(
+                f"🎉 Congratulations {mention}! 🎉\n"
+                f"You guessed the word {word_to_guess.upper()} correctly!\n"
+                f"🏆 You earned 1 point!\n"
+                f"📊 Your total score: {user_score}\n"
+                f"🌍 Your global rank: #{user_rank}\n"
+                f"📖 Definition:\n```{definition}```"
+            )
+        return
+
+    # If no group game, check challenge mode
     for challenger_id, game_data in list(challenger_data.items()):
         if user_id in [challenger_id, game_data["opponent_id"]]:
             word, bet_amount = game_data["word"], game_data["bet_amount"]
+
             if len(text) != len(word):
                 return
 
@@ -180,77 +224,21 @@ async def process_guess(client, message):
                 winnings = bet_amount * 2
                 update_user_points(winner_id, chat_id, winnings)
                 total_points = get_user_points(winner_id)
-                
+
                 del challenger_data[challenger_id]
 
                 definition = await fetch_word_definition(word)
-               
+
                 await message.reply(
                     f"🎉 Congratulations, {mention}! 🎉\n"
                     f"🏆 You guessed the word **{word.upper()}** correctly!\n"
                     f"💰 You won **{winnings} points**!\n"
                     f"🔥 Your new total: **{total_points} points**!\n"
-                    f"📖 Definition:\n{definition}"
+                    f"📖 Definition:\n```{definition}```"
                 )
             return
 
-
-    if chat_id not in group_games:
-        print(f"DEBUG: No active game found in chat {chat_id}")
-        return
-
-    word_to_guess = group_games[chat_id]["word"]
-
-    if len(text) != len(word_to_guess):
-        return
-
     
-    if text in group_games[chat_id]["used_words"]:
-        await message.reply(f"🔄 {mention}, you already used this word! Try a different one.")
-        return
-        
-    
-    is_valid = await is_valid_english_word(text)
-    print(f"DEBUG: Validity of '{text}': {is_valid}")
-    
-    if not is_valid:
-        await message.reply("⚠️ Not a valid English word!")
-        return
-
-    feedback = check_guess(text, word_to_guess)
-    print(f"DEBUG: Feedback for '{text}': {feedback}")
-
-    group_games[chat_id]["used_words"].add(text)
-    group_games[chat_id]["history"].append(f"{feedback} → {text.upper()}")
-    guess_history = "\n".join(group_games[chat_id]["history"])
-
-    await message.reply(guess_history)
-
-    if text == word_to_guess:
-        print(f"DEBUG: Word guessed correctly! {text}")
-        update_chat_score(chat_id, user_id)
-        update_global_score(user_id)
-
-        leaderboard = get_global_leaderboard()
-        user_score = next((score for uid, score in leaderboard if uid == user_id), 0)
-        user_rank = next((i + 1 for i, (uid, _) in enumerate(leaderboard) if uid == user_id), "Unranked")
-
-        del group_games[chat_id]
-
-        definition = await fetch_word_definition(word_to_guess)
-
-        await message.reply(
-            f"🎉 Congratulations {mention}! 🎉\n"
-            f"You guessed the word {word_to_guess.upper()} correctly!\n"
-            f"🏆 You earned 1 point!\n"
-            f"📊 Your total score: {user_score}\n"
-            f"🌍 Your global rank: #{user_rank}"
-            f"Definition: {definition}"
-        )
-
-
-    
-
 @app.on_message(filters.command("chatleaderboard"))
 async def chat_leaderboard(client: Client, message: Message):
     leaderboard = get_chat_leaderboard(message.chat.id)
