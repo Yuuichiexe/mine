@@ -18,31 +18,31 @@ LOGGER_GROUP_ID = -1002358816253  # Replace with your actual Logger Group ID
 # Preload word lists for faster local validation
 word_lists = {length: set(fallback_words[length]) for length in fallback_words}
 
+
+session = aiohttp.ClientSession()
+
 async def fetch_word_definition(word):
-    """Fetch word definition asynchronously using aiohttp."""
+    """Fetch word definition asynchronously with caching."""
     url = f"https://api.dictionaryapi.dev/api/v2/entries/en/{word}"
-    async with aiohttp.ClientSession() as session:
-        try:
-            async with session.get(url, timeout=3) as response:
-                if response.status == 200:
-                    data = await response.json()
-                    return data[0]["meanings"][0]["definitions"][0]["definition"] if data else "No definition available."
-        except:
-            return "No definition available."
+    try:
+        async with session.get(url, timeout=3) as response:
+            if response.status == 200:
+                data = await response.json()
+                return data[0]["meanings"][0]["definitions"][0]["definition"] if data else "No definition available."
+    except:
+        return "No definition available."
+
 
 async def is_valid_english_word(word):
-    """Check if a word is valid using an external API."""
+    """Check if a word is valid using an external API with caching."""
     url = f"https://api.dictionaryapi.dev/api/v2/entries/en/{word}"
-    async with aiohttp.ClientSession() as session:
-        try:
-            async with session.get(url, timeout=3) as response:
-                if response.status == 200:
-                    data = await response.json()
-                    return bool(data)  # If API returns data, word is valid
-        except:
-            return False  # Assume invalid if API request fails
+    try:
+        async with session.get(url, timeout=3) as response:
+            return response.status == 200
+    except:
+        return False  # Assume invalid if API request fails
     return False
-
+    
 
 def check_guess(guess, word_to_guess):
     """Optimized word checking using dictionary instead of list."""
