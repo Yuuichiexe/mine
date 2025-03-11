@@ -160,7 +160,7 @@ async def select_new_game_length(client, callback_query):
 @app.on_message(filters.text & ~filters.command(["new", "leaderboard", "chatleaderboard", "end", "help", "challenge", "start"]))
 async def process_guess(client, message):
     """Handles word guessing."""
-    chat_id, user_id, text = message.chat.id, message.from_user.id, message.text.strip().lower()
+    chat_id, user_id, text, mention = message.chat.id, message.from_user.id, message.text.strip().lower(), message.from_user.mention
     print(f"DEBUG: Received guess '{text}' from user {user_id} in chat {chat_id}")
 
     mention = f"[{message.from_user.first_name}](tg://user?id={user_id})"
@@ -179,7 +179,7 @@ async def process_guess(client, message):
                 winner_id = user_id
                 winnings = bet_amount * 2
                 update_user_points(winner_id, chat_id, winnings)
-                
+                total_points = get_user_points(winner_id)
                 
                 del challenger_data[challenger_id]
 
@@ -204,6 +204,12 @@ async def process_guess(client, message):
     if len(text) != len(word_to_guess):
         return
 
+    
+    if text in group_games[chat_id]["used_words"]:
+        await message.reply(f"🔄 {mention}, you already used this word! Try a different one.")
+        return
+        
+    
     is_valid = await is_valid_english_word(text)
     print(f"DEBUG: Validity of '{text}': {is_valid}")
     
