@@ -241,7 +241,30 @@ async def process_guess(client, message):
                 )
             return
 
+
+@app.on_message(filters.command("leaderboard"))
+async def leaderboard(client: Client, message: Message):
+    leaderboard = get_global_leaderboard()
+    if not leaderboard or not isinstance(leaderboard, list):
+        await message.reply("No scores recorded yet.")
+        return
     
+    
+    leaderboard_text = "🌍 **Global Leaderboard:**\n\n"
+    
+    for rank, (user_id, score) in enumerate(leaderboard, start=1):
+        try:
+            user = await client.get_users(user_id)  # Fetch user info
+            mention = f"[{user.first_name}](tg://user?id={user.id})"
+        except Exception:  # Handle unknown users
+            mention = f"User {user_id}"
+
+        leaderboard_text += f"🏅 **#{rank}** - {mention} → **{score} POINTS**\n"
+    
+    await message.reply(leaderboard_text)
+
+
+
 @app.on_message(filters.command("chatleaderboard"))
 async def chat_leaderboard(client: Client, message: Message):
     leaderboard = get_chat_leaderboard(message.chat.id)
